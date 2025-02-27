@@ -1,4 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
+import {
+  DocumentTextIcon,
+  PlusCircleIcon,
+  InformationCircleIcon,
+} from "@heroicons/react/24/outline";
 
 interface FormatConfiguratorProps {
   onFormatChange: (format: string) => void;
@@ -12,6 +17,7 @@ const FormatConfigurator: React.FC<FormatConfiguratorProps> = ({
   availableColumns = [],
 }) => {
   const [format, setFormat] = useState(initialFormat);
+  const [showHelp, setShowHelp] = useState(false);
 
   // Atualizar o formato quando o initialFormat mudar
   useEffect(() => {
@@ -50,328 +56,139 @@ const FormatConfigurator: React.FC<FormatConfiguratorProps> = ({
     });
   }, []);
 
-  const getExampleValueForColumn = useCallback((columnName: string): string => {
-    // Valores de exemplo mais comuns para colunas específicas
-    const commonExamples: Record<string, Record<string, string>> = {
-      // Colunas de identificação
-      id: { example: "12345", type: "id" },
-      matricula: { example: "M12345", type: "id" },
-      matrícula: { example: "M12345", type: "id" },
-      codigo: { example: "COD-123", type: "id" },
-      código: { example: "COD-123", type: "id" },
-      registro: { example: "REG-789", type: "id" },
-
-      // Colunas de nome
-      nome: { example: "Maria Silva", type: "name" },
-      name: { example: "John Doe", type: "name" },
-      funcionario: { example: "Carlos Santos", type: "name" },
-      funcionário: { example: "Carlos Santos", type: "name" },
-      aluno: { example: "Pedro Oliveira", type: "name" },
-      cliente: { example: "Ana Pereira", type: "name" },
-
-      // Colunas de departamento
-      departamento: { example: "TI", type: "dept" },
-      setor: { example: "Financeiro", type: "dept" },
-      area: { example: "Marketing", type: "dept" },
-      área: { example: "Marketing", type: "dept" },
-
-      // Colunas de contato
-      email: { example: "exemplo@email.com", type: "contact" },
-      telefone: { example: "(11) 98765-4321", type: "contact" },
-      celular: { example: "(11) 98765-4321", type: "contact" },
-
-      // Colunas de data
-      data: { example: "01/01/2023", type: "date" },
-      data_nascimento: { example: "15/05/1990", type: "date" },
-      data_cadastro: { example: "10/10/2022", type: "date" },
-    };
-
-    // Verificar se temos um exemplo específico para esta coluna
-    const lowerColumnName = columnName.toLowerCase();
-    if (commonExamples[lowerColumnName]) {
-      return commonExamples[lowerColumnName].example;
-    }
-
-    // Se não tiver um exemplo específico, criar um exemplo genérico baseado no nome da coluna
-    if (lowerColumnName.includes("nome") || lowerColumnName.includes("name")) {
-      return "Nome do Usuário";
-    } else if (
-      lowerColumnName.includes("id") ||
-      lowerColumnName.includes("cod") ||
-      lowerColumnName.includes("matricula") ||
-      lowerColumnName.includes("matrícula")
-    ) {
-      return "ID123456";
-    } else if (
-      lowerColumnName.includes("data") ||
-      lowerColumnName.includes("date")
-    ) {
-      return "01/01/2023";
-    } else if (
-      lowerColumnName.includes("email") ||
-      lowerColumnName.includes("mail")
-    ) {
-      return "usuario@exemplo.com";
-    } else if (
-      lowerColumnName.includes("tel") ||
-      lowerColumnName.includes("fone") ||
-      lowerColumnName.includes("celular")
-    ) {
-      return "(00) 12345-6789";
-    }
-
-    // Valor genérico para qualquer outra coluna
-    return `Valor de ${columnName}`;
-  }, []);
-
-  const getFormattedPreview = useCallback(() => {
-    if (!format) {
-      return '<span class="text-gray-400">Adicione placeholders para visualizar o formato</span>';
-    }
-
-    let preview = format;
-
-    // Substituir todos os placeholders por valores de exemplo
-    const placeholders = format.match(/\{([^}]+)\}/g) || [];
-
-    for (const placeholder of placeholders) {
-      const columnName = placeholder.substring(1, placeholder.length - 1);
-
-      if (columnName === "extensao") {
-        preview = preview.replace(
-          placeholder,
-          '<span class="text-purple-600 dark:text-purple-400">pdf</span>'
-        );
-      } else {
-        // Usar valores de exemplo para as colunas
-        const exampleValue = getExampleValueForColumn(columnName);
-        preview = preview.replace(
-          placeholder,
-          `<span class="text-blue-600 dark:text-blue-400">${exampleValue}</span>`
-        );
-      }
-    }
-
-    return preview;
-  }, [format, getExampleValueForColumn]);
-
-  // Sugestões de formato comuns
-  const commonFormats = [
-    { name: "ID - Nome", format: "{id} - {nome}" },
-    { name: "Nome (ID)", format: "{nome} ({id})" },
-    { name: "ID_Nome", format: "{id}_{nome}" },
-    { name: "Data - Nome", format: "{data} - {nome}" },
+  // Exemplos de formatos
+  const formatExamples = [
+    {
+      name: "Nome - Matrícula",
+      format: "{nome} - {matricula}",
+      description: "Ex: João Silva - 12345",
+    },
+    {
+      name: "Matrícula_Nome",
+      format: "{matricula}_{nome}",
+      description: "Ex: 12345_JoãoSilva",
+    },
+    {
+      name: "Data - Nome",
+      format: "{data} - {nome}",
+      description: "Ex: 2023-01-01 - João Silva",
+    },
   ];
 
-  // Função para aplicar um formato sugerido
-  const applyFormat = useCallback((formatString: string) => {
-    setFormat(formatString);
-  }, []);
-
   return (
-    <div className="space-y-4">
-      <div>
-        <label
-          htmlFor="formatInput"
-          className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-        >
-          Formato de renomeação
-        </label>
-        <div className="flex items-center gap-2 mb-2">
-          <input
-            id="formatInput"
-            type="text"
-            value={format}
-            onChange={handleFormatChange}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-white"
-            placeholder="Selecione os campos para o formato de renomeação"
-          />
-        </div>
-
-        {format === "" && (
-          <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-md text-sm">
-            <p>
-              <strong>Dica:</strong> Clique nos botões abaixo para adicionar
-              campos ao formato de renomeação. Você também pode adicionar texto
-              livre entre os campos.
-            </p>
-            <p className="mt-1">
-              Exemplo:{" "}
-              <code>
-                Documento - {"{nome}"} ({"{id}"}).{"{extensao}"}
-              </code>
-            </p>
+    <div className="space-y-6">
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+        <div className="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center">
+          <div className="flex items-center">
+            <DocumentTextIcon className="w-5 h-5 text-blue-500 mr-2" />
+            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Formato de renomeação
+            </h3>
           </div>
-        )}
-
-        <div className="flex flex-wrap gap-2 mb-3">
           <button
             type="button"
-            onClick={() => addPlaceholder("extensao")}
-            className="inline-flex items-center px-3 py-1 text-xs font-medium rounded-md bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+            onClick={() => setShowHelp(!showHelp)}
+            className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
           >
-            + {"{extensao}"}
+            <InformationCircleIcon className="w-5 h-5" />
           </button>
-
-          {availableColumns.length > 0 ? (
-            availableColumns.map((column) => (
-              <button
-                key={column}
-                type="button"
-                onClick={() => addPlaceholder(column)}
-                className="inline-flex items-center px-3 py-1 text-xs font-medium rounded-md bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-              >
-                + {`{${column}}`}
-              </button>
-            ))
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={() => addPlaceholder("nome")}
-                className="inline-flex items-center px-3 py-1 text-xs font-medium rounded-md bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300"
-              >
-                + {"{nome}"}
-              </button>
-              <button
-                type="button"
-                onClick={() => addPlaceholder("matricula")}
-                className="inline-flex items-center px-3 py-1 text-xs font-medium rounded-md bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-              >
-                + {"{matricula}"}
-              </button>
-            </>
-          )}
         </div>
 
-        {availableColumns.length > 0 && (
-          <div className="mb-4">
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Formatos sugeridos:
+        {showHelp && (
+          <div className="p-4 bg-blue-50 dark:bg-blue-900/10 border-b border-gray-200 dark:border-gray-700">
+            <h4 className="font-medium text-blue-700 dark:text-blue-400 text-sm mb-2">
+              Como funciona:
+            </h4>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+              Digite o formato desejado para os nomes dos arquivos. Use{" "}
+              {"{coluna}"} para inserir valores das colunas do arquivo de
+              referência.
             </p>
-            <div className="flex flex-wrap gap-2">
-              {commonFormats.map((fmt, index) => {
-                // Substituir os nomes de colunas genéricos pelos reais
-                let formatString = fmt.format;
-
-                // Tentar encontrar colunas correspondentes
-                const idColumns = [
-                  "id",
-                  "matricula",
-                  "matrícula",
-                  "codigo",
-                  "código",
-                  "registro",
-                ];
-                const nameColumns = [
-                  "nome",
-                  "name",
-                  "funcionario",
-                  "funcionário",
-                  "aluno",
-                  "cliente",
-                ];
-                const dateColumns = [
-                  "data",
-                  "data_cadastro",
-                  "data_criacao",
-                  "data_criação",
-                ];
-
-                // Encontrar colunas correspondentes no arquivo atual
-                const idColumn =
-                  availableColumns.find((col) =>
-                    idColumns.includes(col.toLowerCase())
-                  ) || availableColumns[0];
-
-                const nameColumn =
-                  availableColumns.find((col) =>
-                    nameColumns.includes(col.toLowerCase())
-                  ) ||
-                  (availableColumns.length > 1
-                    ? availableColumns[1]
-                    : availableColumns[0]);
-
-                const dateColumn = availableColumns.find((col) =>
-                  dateColumns.includes(col.toLowerCase())
-                );
-
-                // Substituir os placeholders genéricos pelos reais
-                formatString = formatString.replace("{id}", `{${idColumn}}`);
-                formatString = formatString.replace(
-                  "{nome}",
-                  `{${nameColumn}}`
-                );
-
-                if (dateColumn && formatString.includes("{data}")) {
-                  formatString = formatString.replace(
-                    "{data}",
-                    `{${dateColumn}}`
-                  );
-                }
-
-                // Adicionar extensão se não estiver presente
-                if (!formatString.includes("{extensao}")) {
-                  formatString += ".{extensao}";
-                }
-
-                return (
-                  <button
-                    key={index}
-                    type="button"
-                    onClick={() => applyFormat(formatString)}
-                    className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-                  >
-                    {fmt.name}
-                  </button>
-                );
-              })}
-            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Exemplo: Para um arquivo com nome "documento.pdf" e uma linha na
+              planilha com nome "João" e matrícula "12345", o formato{" "}
+              <span className="font-mono bg-gray-100 dark:bg-gray-700 px-1 rounded">
+                {"{matricula}"}_{"{nome}"}
+              </span>{" "}
+              resultará em "12345_João.pdf"
+            </p>
           </div>
         )}
-      </div>
 
-      <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-md">
-        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Visualização:
-        </h4>
-        <div className="p-3 bg-white dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600">
-          <p className="text-sm text-gray-600 dark:text-gray-300 font-mono">
-            <span
-              dangerouslySetInnerHTML={{
-                __html: getFormattedPreview(),
-              }}
-            />
-          </p>
+        <div className="p-4">
+          <div className="mb-4">
+            <label
+              htmlFor="formatInput"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+            >
+              Digite o formato:
+            </label>
+            <div className="flex">
+              <input
+                type="text"
+                id="formatInput"
+                value={format}
+                onChange={handleFormatChange}
+                placeholder="Ex: {nome} - {matricula}"
+                className="flex-1 block w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:text-white sm:text-sm"
+              />
+            </div>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {format
+                ? `Prévia: ${format.replace(/{([^}]+)}/g, "valor_da_$1")}`
+                : "Digite um formato para ver a prévia"}
+            </p>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Colunas disponíveis:
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {availableColumns.map((column) => (
+                <button
+                  key={column}
+                  type="button"
+                  onClick={() => addPlaceholder(column)}
+                  className="inline-flex items-center px-2.5 py-1.5 border border-gray-300 dark:border-gray-600 shadow-sm text-xs font-medium rounded text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-650 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  <PlusCircleIcon className="w-4 h-4 mr-1 text-blue-500" />
+                  {column}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="text-xs text-gray-500 dark:text-gray-400">
-        <p>Placeholders disponíveis:</p>
-        <ul className="list-disc list-inside mt-1">
-          {availableColumns.length > 0 ? (
-            availableColumns.map((column) => (
-              <li key={column}>
-                <code>{`{${column}}`}</code> - Valor da coluna {column} do
-                arquivo de referência
-              </li>
-            ))
-          ) : (
-            <>
-              <li>
-                <code>{"{nome}"}</code> - Nome do usuário do arquivo de
-                referência
-              </li>
-              <li>
-                <code>{"{matricula}"}</code> - Matrícula do usuário do arquivo
-                de referência
-              </li>
-            </>
-          )}
-          <li>
-            <code>{"{extensao}"}</code> - Extensão original do arquivo
-          </li>
-        </ul>
+      {/* Exemplos de formato */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+        <div className="p-4 bg-slate-800 border-b border-slate-700">
+          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            Exemplos de formato
+          </h3>
+        </div>
+        <div className="p-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {formatExamples.map((example, index) => (
+              <div
+                key={index}
+                className="border border-slate-700 rounded-lg p-3 hover:bg-slate-700 cursor-pointer"
+                onClick={() => setFormat(example.format)}
+              >
+                <h4 className="font-medium text-gray-700 dark:text-gray-300 text-sm">
+                  {example.name}
+                </h4>
+                <p className="text-xs text-blue-600 dark:text-blue-400 font-mono mt-1">
+                  {example.format}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {example.description}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

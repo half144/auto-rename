@@ -9,6 +9,16 @@ import {
   getPaginationRowModel,
   useReactTable,
 } from "@tanstack/react-table";
+import {
+  DocumentDuplicateIcon,
+  ArrowDownTrayIcon,
+  CheckCircleIcon,
+  ExclamationCircleIcon,
+  ArrowPathIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  DocumentArrowDownIcon,
+} from "@heroicons/react/24/outline";
 
 interface ProcessFilesProps {
   files: File[];
@@ -42,797 +52,667 @@ const ProcessFiles: React.FC<ProcessFilesProps> = ({
   const [filePreviews, setFilePreviews] = useState<FilePreview[]>([]);
   const [referenceData, setReferenceData] = useState<ReferenceData>({});
   const [isPreviewReady, setIsPreviewReady] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   // Estados para paginação
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
 
-  const columnHelper = createColumnHelper<FilePreview>();
+  // Função para extrair o identificador do nome do arquivo
+  const extractIdentifierFromFilename = useCallback(
+    (filename: string): string => {
+      // Remover a extensão do arquivo
+      const nameWithoutExtension = filename.substring(
+        0,
+        filename.lastIndexOf(".")
+      );
 
-  const columns = useMemo(
-    () => [
-      columnHelper.accessor("originalName", {
-        header: "Nome original",
-        cell: (info) => info.getValue(),
-      }),
-      columnHelper.accessor("newName", {
-        header: "Novo nome",
-        cell: (info) => info.getValue(),
-      }),
-      columnHelper.accessor("size", {
-        header: "Tamanho",
-        cell: (info) => `${(info.getValue() / 1024).toFixed(2)} KB`,
-      }),
-    ],
-    []
+      // Se a coluna de correspondência for "Colaborador" ou similar
+      if (
+        matchColumn.toLowerCase().includes("colaborador") ||
+        matchColumn.toLowerCase().includes("nome")
+      ) {
+        // Retorna o nome completo para fazer a correspondência com o nome do colaborador
+        return nameWithoutExtension;
+      }
+
+      // Para outros tipos de colunas (como matrícula, ID, etc.)
+      // Tentar encontrar um padrão de identificador no nome do arquivo
+      // Exemplos: "12345_Nome.pdf", "Nome_12345.pdf", "12345 - Nome.pdf"
+      const patterns = [
+        /^(\d+)[_\s-]+/,
+        /[_\s-]+(\d+)$/,
+        /^([A-Za-z0-9]+)[_\s-]+/,
+      ];
+
+      for (const pattern of patterns) {
+        const match = nameWithoutExtension.match(pattern);
+        if (match && match[1]) {
+          return match[1];
+        }
+      }
+
+      // Se não encontrar um padrão, retornar o nome sem extensão
+      return nameWithoutExtension;
+    },
+    [matchColumn]
   );
 
-  const table = useReactTable({
-    data: filePreviews,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    initialState: {
-      pagination: {
-        pageSize: 5,
-      },
+  // Função para gerar o novo nome do arquivo
+  const generateNewFilename = useCallback(
+    (
+      originalFilename: string,
+      fileReferenceData: Record<string, string> | undefined
+    ): { newName: string; error?: string } => {
+      if (!fileReferenceData) {
+        return {
+          newName: originalFilename,
+          error: "Dados de referência não encontrados",
+        };
+      }
+
+      // Obter a extensão do arquivo original
+      const extension = originalFilename.substring(
+        originalFilename.lastIndexOf(".")
+      );
+
+      // Substituir os placeholders no formato pelo valor correspondente
+      let newName = format;
+
+      // Adicionar a extensão se não estiver no formato
+      if (!format.includes("{extensao}")) {
+        newName += extension;
+      } else {
+        newName = newName.replace("{extensao}", extension.substring(1));
+      }
+
+      // Substituir os placeholders pelos valores do arquivo de referência
+      const placeholders = format.match(/\{([^}]+)\}/g) || [];
+
+      for (const placeholder of placeholders) {
+        const fieldName = placeholder.substring(1, placeholder.length - 1);
+
+        if (fieldName === "extensao") {
+          continue; // Já tratamos a extensão
+        }
+
+        const fieldValue = fileReferenceData[fieldName] || "";
+        newName = newName.replace(placeholder, fieldValue);
+      }
+
+      // Remover caracteres inválidos para nomes de arquivo
+      newName = newName.replace(/[<>:"/\\|?*]/g, "_");
+
+      return { newName };
     },
-  });
+    [format]
+  );
 
-  // Memoize as funções para evitar recriações a cada renderização
-  const processReferenceFile = useCallback(
-    async (file: File): Promise<ReferenceData> => {
-      return new Promise((resolve, reject) => {
-        const fileReader = new FileReader();
+  // Efeito para carregar os dados de referência
+  useEffect(() => {
+    if (!referenceFile || !matchColumn) return;
 
-        fileReader.onload = (e) => {
+    const loadReferenceData = async () => {
+      try {
+        setIsProcessing(true);
+        setError(null);
+
+        const reader = new FileReader();
+
+        reader.onload = async (e) => {
           try {
-            const result = e.target?.result;
-            const wb = XLSX.read(result, { type: "binary" });
-            const wsname = wb.SheetNames[0];
-            const ws = wb.Sheets[wsname];
-            const data = XLSX.utils.sheet_to_json(ws) as Array<
-              Record<string, string>
-            >;
-
-            if (data.length === 0) {
-              throw new Error(
-                "Arquivo de referência vazio ou sem dados válidos."
-              );
+            const data = e.target?.result;
+            if (!data) {
+              throw new Error("Falha ao ler o arquivo de referência.");
             }
 
-            // Verificar se a coluna de correspondência existe
-            if (!data[0].hasOwnProperty(matchColumn)) {
-              throw new Error(
-                `A coluna "${matchColumn}" não existe no arquivo de referência.`
-              );
+            let workbook;
+            if (referenceFile.name.endsWith(".csv")) {
+              // Para arquivos CSV
+              workbook = XLSX.read(data, { type: "binary" });
+            } else {
+              // Para arquivos Excel
+              workbook = XLSX.read(data, { type: "array" });
             }
 
-            const referenceData: ReferenceData = {};
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+              defval: "",
+            }) as Record<string, string>[];
 
-            data.forEach((row, index) => {
-              if (!row[matchColumn]) {
-                console.warn(
-                  `Linha ${
-                    index + 1
-                  }: Valor ausente na coluna de correspondência "${matchColumn}".`
-                );
-                return;
+            // Criar um mapa de dados de referência usando a coluna de correspondência
+            const refData: ReferenceData = {};
+
+            // Uma versão normalized para pesquisa mais flexível
+            const normalizedRefData: { [key: string]: string } = {};
+
+            jsonData.forEach((row) => {
+              const key = row[matchColumn]?.toString().trim();
+              if (key) {
+                refData[key] = row;
+
+                // Adiciona uma versão normalizada (sem acentos, tudo em minúsculas, sem espaços extras)
+                const normalizedKey = key
+                  .toLowerCase()
+                  .normalize("NFD")
+                  .replace(/[\u0300-\u036f]/g, "")
+                  .replace(/\s+/g, " ")
+                  .trim();
+
+                normalizedRefData[normalizedKey] = key;
               }
-
-              // Usar o valor da coluna de correspondência como chave
-              referenceData[row[matchColumn]] = row;
             });
 
-            resolve(referenceData);
+            setReferenceData(refData);
+
+            // Gerar previews para os arquivos
+            if (files.length > 0) {
+              const previews: FilePreview[] = [];
+
+              for (const file of files) {
+                const identifier = extractIdentifierFromFilename(file.name);
+
+                // Tentar encontrar o valor correspondente na referência
+                let fileRefData = refData[identifier];
+
+                // Se não encontrar diretamente, tentar uma busca normalizada
+                if (
+                  !fileRefData &&
+                  matchColumn.toLowerCase().includes("colaborador")
+                ) {
+                  const normalizedIdentifier = identifier
+                    .toLowerCase()
+                    .normalize("NFD")
+                    .replace(/[\u0300-\u036f]/g, "")
+                    .replace(/\s+/g, " ")
+                    .trim();
+
+                  // Procurar por correspondências próximas
+                  const originalKey = normalizedRefData[normalizedIdentifier];
+                  if (originalKey) {
+                    fileRefData = refData[originalKey];
+                  } else {
+                    // Tentar encontrar se o nome está contido no identificador ou vice-versa
+                    const possibleKeys = Object.keys(normalizedRefData);
+                    for (const nKey of possibleKeys) {
+                      if (
+                        normalizedIdentifier.includes(nKey) ||
+                        nKey.includes(normalizedIdentifier)
+                      ) {
+                        const originalMatchKey = normalizedRefData[nKey];
+                        fileRefData = refData[originalMatchKey];
+                        break;
+                      }
+                    }
+                  }
+                }
+
+                const { newName, error } = generateNewFilename(
+                  file.name,
+                  fileRefData
+                );
+
+                previews.push({
+                  originalName: file.name,
+                  newName,
+                  error,
+                  size: file.size,
+                });
+              }
+
+              setFilePreviews(previews);
+              setTotalPages(Math.ceil(previews.length / itemsPerPage));
+              setIsPreviewReady(true);
+            }
           } catch (error) {
-            reject(
+            setError(
               `Erro ao processar o arquivo de referência: ${
                 error instanceof Error ? error.message : "Erro desconhecido"
               }`
             );
+          } finally {
+            setIsProcessing(false);
           }
         };
 
-        fileReader.onerror = () => {
-          reject("Erro ao ler o arquivo de referência.");
+        reader.onerror = () => {
+          setError("Erro ao ler o arquivo de referência.");
+          setIsProcessing(false);
         };
 
-        fileReader.readAsBinaryString(file);
-      });
-    },
-    [matchColumn]
-  );
-
-  const extractMatchValue = useCallback(
-    (fileName: string): string | null => {
-      // Extrair o valor de correspondência do nome do arquivo
-      // Remover a extensão
-      const nameWithoutExtension = fileName.substring(
-        0,
-        fileName.lastIndexOf(".")
-      );
-
-      // Estratégia 1: Correspondência exata - verificar se alguma chave do referenceData está exatamente no nome do arquivo
-      for (const key in referenceData) {
-        if (nameWithoutExtension === key || fileName === key) {
-          return key;
+        if (referenceFile.name.endsWith(".csv")) {
+          reader.readAsBinaryString(referenceFile);
+        } else {
+          reader.readAsArrayBuffer(referenceFile);
         }
-      }
-
-      // Estratégia 2: Correspondência parcial - verificar se alguma chave está contida no nome do arquivo
-      for (const key in referenceData) {
-        if (nameWithoutExtension.includes(key)) {
-          return key;
-        }
-      }
-
-      // Estratégia 3: Correspondência por palavras - dividir o nome do arquivo em palavras e verificar cada uma
-      const words = nameWithoutExtension.split(/[\s_\-\.]+/); // Dividir por espaços, underscores, hífens e pontos
-      for (const word of words) {
-        if (word.length > 2) {
-          // Ignorar palavras muito curtas
-          for (const key in referenceData) {
-            if (word === key || key.includes(word) || word.includes(key)) {
-              return key;
-            }
-          }
-        }
-      }
-
-      // Estratégia 4: Correspondência por números - extrair números do nome do arquivo
-      const numbers = nameWithoutExtension.match(/\d+/g);
-      if (numbers) {
-        for (const number of numbers) {
-          if (number.length >= 3) {
-            // Considerar apenas números com pelo menos 3 dígitos
-            for (const key in referenceData) {
-              if (key === number || key.includes(number)) {
-                return key;
-              }
-            }
-          }
-        }
-      }
-
-      return null;
-    },
-    [referenceData]
-  );
-
-  const renameFile = useCallback(
-    (
-      file: File,
-      refData: ReferenceData,
-      formatString: string,
-      matchValue: string
-    ): string => {
-      try {
-        if (!refData[matchValue]) {
-          throw new Error(
-            `Valor "${matchValue}" não encontrado na coluna "${matchColumn}" do arquivo de referência.`
-          );
-        }
-
-        const userData = refData[matchValue];
-        const fileExtension = file.name.split(".").pop() || "";
-
-        // Substituir todos os placeholders no formato
-        let newFileName = formatString;
-
-        // Encontrar todos os placeholders no formato {coluna}
-        const placeholders = formatString.match(/\{([^}]+)\}/g) || [];
-
-        for (const placeholder of placeholders) {
-          // Extrair o nome da coluna do placeholder {coluna}
-          const columnName = placeholder.substring(1, placeholder.length - 1);
-
-          if (columnName === "extensao") {
-            newFileName = newFileName.replace(placeholder, fileExtension);
-          } else if (userData[columnName] !== undefined) {
-            newFileName = newFileName.replace(
-              placeholder,
-              userData[columnName]
-            );
-          } else {
-            // Se a coluna não existir, manter o placeholder
-            console.warn(
-              `Coluna "${columnName}" não encontrada no arquivo de referência.`
-            );
-          }
-        }
-
-        // Garantir que o nome do arquivo tenha a extensão
-        if (!newFileName.endsWith(`.${fileExtension}`)) {
-          newFileName = `${newFileName}.${fileExtension}`;
-        }
-
-        return newFileName;
       } catch (error) {
-        throw new Error(
-          `Erro ao renomear arquivo ${file.name}: ${
+        setError(
+          `Erro ao processar o arquivo de referência: ${
             error instanceof Error ? error.message : "Erro desconhecido"
           }`
         );
+        setIsProcessing(false);
       }
-    },
-    [matchColumn]
-  );
+    };
 
-  const generatePreviews = useCallback(
-    (refData: ReferenceData) => {
-      if (files.length === 0 || Object.keys(refData).length === 0) {
-        setFilePreviews([]);
-        setIsPreviewReady(false);
-        return;
-      }
+    loadReferenceData();
+  }, [
+    referenceFile,
+    matchColumn,
+    files,
+    extractIdentifierFromFilename,
+    generateNewFilename,
+    itemsPerPage,
+  ]);
 
+  // Efeito para atualizar os previews quando os arquivos ou o formato mudam
+  useEffect(() => {
+    if (
+      !referenceFile ||
+      !matchColumn ||
+      Object.keys(referenceData).length === 0
+    )
+      return;
+
+    const updatePreviews = () => {
       const previews: FilePreview[] = [];
 
       for (const file of files) {
-        try {
-          const matchValue = extractMatchValue(file.name);
+        const identifier = extractIdentifierFromFilename(file.name);
+        const fileRefData = referenceData[identifier];
+        const { newName, error } = generateNewFilename(file.name, fileRefData);
 
-          if (!matchValue) {
-            previews.push({
-              originalName: file.name,
-              newName: file.name,
-              error: `Não foi possível encontrar correspondência para este arquivo.`,
-              size: file.size,
-            });
-            continue;
-          }
-
-          const newFileName = renameFile(file, refData, format, matchValue);
-
-          previews.push({
-            originalName: file.name,
-            newName: newFileName,
-            size: file.size,
-          });
-        } catch (error) {
-          previews.push({
-            originalName: file.name,
-            newName: file.name,
-            error: error instanceof Error ? error.message : "Erro desconhecido",
-            size: file.size,
-          });
-        }
+        previews.push({
+          originalName: file.name,
+          newName,
+          error,
+          size: file.size,
+        });
       }
 
       setFilePreviews(previews);
-      setIsPreviewReady(true);
-
-      // Atualizar o total de páginas
       setTotalPages(Math.ceil(previews.length / itemsPerPage));
-      // Resetar para a primeira página quando novos previews são gerados
-      setCurrentPage(1);
+      setIsPreviewReady(true);
+    };
+
+    updatePreviews();
+  }, [
+    files,
+    format,
+    referenceData,
+    extractIdentifierFromFilename,
+    generateNewFilename,
+    itemsPerPage,
+    referenceFile,
+    matchColumn,
+  ]);
+
+  // Definir as colunas da tabela
+  const tableColumns = useMemo(() => {
+    const columnHelper = createColumnHelper<FilePreview>();
+
+    return [
+      columnHelper.accessor("originalName", {
+        header: "Nome Original",
+        cell: (info) => (
+          <div className="flex items-center">
+            <DocumentDuplicateIcon className="w-4 h-4 text-gray-400 mr-2 flex-shrink-0" />
+            <span className="truncate">{info.getValue()}</span>
+          </div>
+        ),
+      }),
+      columnHelper.accessor("newName", {
+        header: "Novo Nome",
+        cell: (info) => {
+          const hasError = !!info.row.original.error;
+          return (
+            <div className="flex items-center">
+              {hasError ? (
+                <ExclamationCircleIcon className="w-4 h-4 text-red-500 mr-2 flex-shrink-0" />
+              ) : (
+                <CheckCircleIcon className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
+              )}
+              <span
+                className={`truncate ${
+                  hasError
+                    ? "text-red-500"
+                    : "text-green-600 dark:text-green-400"
+                }`}
+              >
+                {info.getValue()}
+              </span>
+            </div>
+          );
+        },
+      }),
+      columnHelper.accessor("size", {
+        header: "Tamanho",
+        cell: (info) => {
+          const size = info.getValue();
+          let formattedSize = "";
+          if (size < 1024) {
+            formattedSize = `${size} B`;
+          } else if (size < 1024 * 1024) {
+            formattedSize = `${(size / 1024).toFixed(2)} KB`;
+          } else {
+            formattedSize = `${(size / (1024 * 1024)).toFixed(2)} MB`;
+          }
+          return (
+            <span className="text-gray-500 dark:text-gray-400">
+              {formattedSize}
+            </span>
+          );
+        },
+      }),
+      columnHelper.accessor("error", {
+        header: "Status",
+        cell: (info) => {
+          const error = info.getValue();
+          return error ? (
+            <span className="text-red-500 text-sm">{error}</span>
+          ) : (
+            <span className="text-green-500 text-sm">Pronto</span>
+          );
+        },
+      }),
+    ];
+  }, []);
+
+  // Configurar a tabela
+  const table = useReactTable({
+    data: filePreviews,
+    columns: tableColumns,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: {
+      pagination: {
+        pageSize: itemsPerPage,
+      },
     },
-    [files, format, extractMatchValue, renameFile, itemsPerPage]
-  );
+  });
 
-  // Processar o arquivo de referência quando ele mudar
-  useEffect(() => {
-    if (referenceFile && matchColumn) {
-      processReferenceFile(referenceFile)
-        .then((data) => {
-          setReferenceData(data);
-        })
-        .catch((err) => {
-          setError(err.toString());
-          setFilePreviews([]);
-          setIsPreviewReady(false);
-        });
-    } else {
-      setFilePreviews([]);
-      setIsPreviewReady(false);
-    }
-  }, [referenceFile, matchColumn, processReferenceFile]);
-
-  // Gerar previews quando os arquivos, formato ou dados de referência mudarem
-  useEffect(() => {
-    if (Object.keys(referenceData).length > 0 && files.length > 0) {
-      generatePreviews(referenceData);
-    }
-  }, [referenceData, generatePreviews]);
-
-  // Atualizar o total de páginas quando o número de itens por página mudar
-  useEffect(() => {
-    if (filePreviews.length > 0) {
-      setTotalPages(Math.ceil(filePreviews.length / itemsPerPage));
-      // Ajustar a página atual se necessário
-      if (currentPage > Math.ceil(filePreviews.length / itemsPerPage)) {
-        setCurrentPage(1);
-      }
-    }
-  }, [filePreviews.length, itemsPerPage, currentPage]);
-
+  // Função para processar os arquivos e criar o ZIP
   const processFiles = async () => {
-    if (!referenceFile) {
-      setError("Arquivo de referência não selecionado.");
-      return;
-    }
-
-    if (files.length === 0) {
-      setError("Nenhum arquivo selecionado para renomear.");
-      return;
-    }
-
-    if (!matchColumn) {
-      setError("Coluna de correspondência não selecionada.");
-      return;
-    }
-
-    setIsProcessing(true);
-    setProgress(0);
-    setError(null);
+    if (files.length === 0 || !isPreviewReady) return;
 
     try {
-      // Criar ZIP
+      setIsProcessing(true);
+      setProgress(0);
+      setError(null);
+      setIsDownloading(true);
+
       const zip = new JSZip();
-      let processedCount = 0;
+      const total = files.length;
+      let processed = 0;
 
-      // Processar cada arquivo
-      for (const preview of filePreviews) {
-        const file = files.find((f) => f.name === preview.originalName);
+      // Adicionar cada arquivo ao ZIP com o novo nome
+      for (const file of files) {
+        const identifier = extractIdentifierFromFilename(file.name);
+        const fileRefData = referenceData[identifier];
+        const { newName } = generateNewFilename(file.name, fileRefData);
 
-        if (!file) continue;
+        // Ler o conteúdo do arquivo
+        const content = await readFileAsArrayBuffer(file);
 
-        if (preview.error) {
-          zip.file(`não_processado_${file.name}`, file);
-        } else {
-          zip.file(preview.newName, file);
-        }
+        // Adicionar ao ZIP
+        zip.file(newName, content);
 
-        processedCount++;
-        setProgress(Math.floor((processedCount / files.length) * 100));
+        // Atualizar o progresso
+        processed++;
+        setProgress(Math.round((processed / total) * 100));
       }
 
-      // Gerar ZIP
-      const content = await zip.generateAsync({ type: "blob" });
+      // Gerar o arquivo ZIP
+      const zipContent = await zip.generateAsync({ type: "blob" });
 
-      // Download ZIP
-      saveAs(content, "arquivos_renomeados.zip");
+      // Salvar o arquivo
+      saveAs(zipContent, "arquivos_renomeados.zip");
 
-      setProgress(100);
+      setIsDownloading(false);
     } catch (error) {
       setError(
-        `Erro ao processar arquivos: ${
+        `Erro ao processar os arquivos: ${
           error instanceof Error ? error.message : "Erro desconhecido"
         }`
       );
+      setIsDownloading(false);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // Funções para paginação
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
+  // Função para ler um arquivo como ArrayBuffer
+  const readFileAsArrayBuffer = (file: File): Promise<ArrayBuffer> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = (e) => {
+        if (e.target?.result instanceof ArrayBuffer) {
+          resolve(e.target.result);
+        } else {
+          reject(new Error("Falha ao ler o arquivo."));
+        }
+      };
+
+      reader.onerror = () => {
+        reject(new Error("Erro ao ler o arquivo."));
+      };
+
+      reader.readAsArrayBuffer(file);
+    });
   };
 
+  // Função para mudar de página
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    table.setPageIndex(page - 1);
+  };
+
+  // Função para mudar o número de itens por página
   const handleItemsPerPageChange = (
     e: React.ChangeEvent<HTMLSelectElement>
   ) => {
-    setItemsPerPage(Number(e.target.value));
-    setCurrentPage(1); // Voltar para a primeira página ao mudar o número de itens por página
+    const newItemsPerPage = parseInt(e.target.value);
+    setItemsPerPage(newItemsPerPage);
+    table.setPageSize(newItemsPerPage);
+    setTotalPages(Math.ceil(filePreviews.length / newItemsPerPage));
   };
 
-  // Obter os itens da página atual
+  // Função para obter os itens da página atual
   const getCurrentPageItems = () => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
     return filePreviews.slice(startIndex, endIndex);
   };
 
-  // Renderizar os controles de paginação
-  const renderPagination = () => {
-    if (totalPages <= 1) return null;
-
-    const pageNumbers = [];
-    const maxPagesToShow = 5; // Número máximo de botões de página para mostrar
-
-    let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
-    let endPage = startPage + maxPagesToShow - 1;
-
-    if (endPage > totalPages) {
-      endPage = totalPages;
-      startPage = Math.max(1, endPage - maxPagesToShow + 1);
-    }
-
-    for (let i = startPage; i <= endPage; i++) {
-      pageNumbers.push(i);
-    }
-
-    return (
-      <div className="flex items-center justify-between mt-4">
-        <div className="flex items-center space-x-2">
-          <span className="text-sm text-gray-700 dark:text-gray-300">
-            Itens por página:
-          </span>
-          <select
-            value={itemsPerPage}
-            onChange={handleItemsPerPageChange}
-            className="border border-gray-300 dark:border-gray-700 rounded-md text-sm p-1 dark:bg-gray-800 dark:text-white"
-          >
-            <option value={5}>5</option>
-            <option value={10}>10</option>
-            <option value={20}>20</option>
-            <option value={50}>50</option>
-          </select>
-        </div>
-
-        <div className="flex items-center space-x-1">
-          <button
-            onClick={() => handlePageChange(1)}
-            disabled={currentPage === 1}
-            className={`px-2 py-1 text-sm rounded ${
-              currentPage === 1
-                ? "text-gray-400 cursor-not-allowed"
-                : "text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-            }`}
-          >
-            &laquo;
-          </button>
-
-          <button
-            onClick={() => handlePageChange(currentPage - 1)}
-            disabled={currentPage === 1}
-            className={`px-2 py-1 text-sm rounded ${
-              currentPage === 1
-                ? "text-gray-400 cursor-not-allowed"
-                : "text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-            }`}
-          >
-            &lsaquo;
-          </button>
-
-          {pageNumbers.map((number) => (
-            <button
-              key={number}
-              onClick={() => handlePageChange(number)}
-              className={`px-3 py-1 text-sm rounded ${
-                currentPage === number
-                  ? "bg-blue-600 text-white"
-                  : "text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-              }`}
-            >
-              {number}
-            </button>
-          ))}
-
-          <button
-            onClick={() => handlePageChange(currentPage + 1)}
-            disabled={currentPage === totalPages}
-            className={`px-2 py-1 text-sm rounded ${
-              currentPage === totalPages
-                ? "text-gray-400 cursor-not-allowed"
-                : "text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-            }`}
-          >
-            &rsaquo;
-          </button>
-
-          <button
-            onClick={() => handlePageChange(totalPages)}
-            disabled={currentPage === totalPages}
-            className={`px-2 py-1 text-sm rounded ${
-              currentPage === totalPages
-                ? "text-gray-400 cursor-not-allowed"
-                : "text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-            }`}
-          >
-            &raquo;
-          </button>
-        </div>
-
-        <div className="text-sm text-gray-700 dark:text-gray-300">
-          Página {currentPage} de {totalPages}
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-6">
-      {error && (
-        <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-md">
-          {error}
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+        <div className="p-4 bg-slate-800 border-b border-slate-700">
+          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+            <DocumentArrowDownIcon className="w-5 h-5 text-blue-500 mr-2" />
+            Prévia dos arquivos renomeados
+          </h3>
         </div>
-      )}
 
-      {isPreviewReady && filePreviews.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Prévia da renomeação
-            </h3>
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              Mostrando {table.getState().pagination.pageSize} de{" "}
-              {filePreviews.length} arquivos
+        <div className="p-4">
+          {isProcessing && !isDownloading ? (
+            <div className="flex items-center justify-center py-8">
+              <ArrowPathIcon className="w-6 h-6 text-blue-500 animate-spin" />
+              <span className="ml-2 text-gray-600 dark:text-gray-400">
+                Processando arquivos...
+              </span>
             </div>
-          </div>
-
-          <div className="table-container">
-            <div className="table-wrapper">
-              <table className="table">
-                <thead className="table-header">
-                  {table.getHeaderGroups().map((headerGroup) => (
-                    <tr key={headerGroup.id}>
-                      {headerGroup.headers.map((header) => (
+          ) : error ? (
+            <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-md">
+              {error}
+            </div>
+          ) : filePreviews.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              Nenhum arquivo para processar.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-slate-800">
+                    <tr>
+                      {table.getFlatHeaders().map((header) => (
                         <th
                           key={header.id}
-                          scope="col"
-                          className="table-header-cell"
+                          className="px-4 py-3 text-left text-xs font-medium text-slate-200 uppercase tracking-wider"
                         >
-                          {header.isPlaceholder
-                            ? null
-                            : flexRender(
-                                header.column.columnDef.header,
-                                header.getContext()
-                              )}
+                          {flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
                         </th>
                       ))}
                     </tr>
-                  ))}
-                </thead>
-                <tbody className="table-body">
-                  {table.getRowModel().rows.map((row) => (
-                    <tr
-                      key={row.id}
-                      className={`table-row ${
-                        row.original.error ? "bg-red-50 dark:bg-red-900/10" : ""
-                      }`}
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <td key={cell.id} className="table-cell">
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext()
-                          )}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="table-footer">
-              <div className="pagination-container">
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">
-                    Itens por página:
-                  </span>
-                  <select
-                    value={table.getState().pagination.pageSize}
-                    onChange={(e) => {
-                      table.setPageSize(Number(e.target.value));
-                    }}
-                    className="border border-gray-300 dark:border-gray-700 rounded-md text-sm p-1 bg-white dark:bg-gray-800 dark:text-white focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    {[5, 10, 20, 50].map((pageSize) => (
-                      <option key={pageSize} value={pageSize}>
-                        {pageSize}
-                      </option>
+                  </thead>
+                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {table.getRowModel().rows.map((row) => (
+                      <tr key={row.id} className="hover:bg-slate-700">
+                        {row.getVisibleCells().map((cell) => (
+                          <td
+                            key={cell.id}
+                            className="px-4 py-2 text-sm text-slate-200"
+                          >
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext()
+                            )}
+                          </td>
+                        ))}
+                      </tr>
                     ))}
-                  </select>
-                </div>
+                  </tbody>
+                </table>
+              </div>
 
-                <div className="flex items-center justify-center">
-                  <div className="flex items-center space-x-1">
-                    <button
-                      onClick={() => table.setPageIndex(0)}
-                      disabled={!table.getCanPreviousPage()}
-                      className={
-                        !table.getCanPreviousPage()
-                          ? "pagination-button-disabled"
-                          : "pagination-button"
-                      }
-                      aria-label="Primeira página"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-4 w-4"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M15.707 15.707a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 010 1.414zm-6 0a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 011.414 1.414L5.414 10l4.293 4.293a1 1 0 010 1.414z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    </button>
-
+              {/* Paginação */}
+              {filePreviews.length > itemsPerPage && (
+                <div className="px-4 py-3 flex items-center justify-between border-t border-slate-700 bg-slate-800 sm:px-6 rounded-b-lg">
+                  <div className="flex-1 flex justify-between sm:hidden">
                     <button
                       onClick={() => table.previousPage()}
                       disabled={!table.getCanPreviousPage()}
-                      className={
+                      className={`relative inline-flex items-center px-4 py-2 border border-slate-700 text-slate-200 text-sm font-medium rounded-md ${
                         !table.getCanPreviousPage()
-                          ? "pagination-button-disabled"
-                          : "pagination-button"
-                      }
-                      aria-label="Página anterior"
+                          ? "text-slate-400 bg-slate-800 cursor-not-allowed"
+                          : "text-slate-200 bg-slate-800 hover:bg-slate-700"
+                      }`}
                     >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-4 w-4"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
+                      Anterior
                     </button>
-
-                    <div className="flex items-center space-x-1">
-                      {Array.from(
-                        { length: table.getPageCount() },
-                        (_, i) => i + 1
-                      ).map((pageNumber) => {
-                        // Show only a few page numbers around the current page
-                        if (
-                          pageNumber === 1 ||
-                          pageNumber === table.getPageCount() ||
-                          (pageNumber >=
-                            table.getState().pagination.pageIndex + 1 - 1 &&
-                            pageNumber <=
-                              table.getState().pagination.pageIndex + 1 + 1)
-                        ) {
-                          return (
-                            <button
-                              key={pageNumber}
-                              onClick={() => table.setPageIndex(pageNumber - 1)}
-                              className={
-                                table.getState().pagination.pageIndex + 1 ===
-                                pageNumber
-                                  ? "pagination-page-button-active"
-                                  : "pagination-page-button"
-                              }
-                            >
-                              {pageNumber}
-                            </button>
-                          );
-                        }
-
-                        // Show ellipsis for skipped pages
-                        if (
-                          (pageNumber === 2 &&
-                            table.getState().pagination.pageIndex + 1 > 3) ||
-                          (pageNumber === table.getPageCount() - 1 &&
-                            table.getState().pagination.pageIndex + 1 <
-                              table.getPageCount() - 2)
-                        ) {
-                          return (
-                            <span
-                              key={pageNumber}
-                              className="px-2 py-1 text-sm text-gray-500"
-                            >
-                              ...
-                            </span>
-                          );
-                        }
-
-                        return null;
-                      })}
-                    </div>
-
                     <button
                       onClick={() => table.nextPage()}
                       disabled={!table.getCanNextPage()}
-                      className={
+                      className={`ml-3 relative inline-flex items-center px-4 py-2 border border-slate-700 text-slate-200 text-sm font-medium rounded-md ${
                         !table.getCanNextPage()
-                          ? "pagination-button-disabled"
-                          : "pagination-button"
-                      }
-                      aria-label="Próxima página"
+                          ? "text-slate-400 bg-slate-800 cursor-not-allowed"
+                          : "text-slate-200 bg-slate-800 hover:bg-slate-700"
+                      }`}
                     >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-4 w-4"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    </button>
-
-                    <button
-                      onClick={() =>
-                        table.setPageIndex(table.getPageCount() - 1)
-                      }
-                      disabled={!table.getCanNextPage()}
-                      className={
-                        !table.getCanNextPage()
-                          ? "pagination-button-disabled"
-                          : "pagination-button"
-                      }
-                      aria-label="Última página"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-4 w-4"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M10.293 15.707a1 1 0 010-1.414L14.586 10l-4.293-4.293a1 1 0 111.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0z"
-                          clipRule="evenodd"
-                        />
-                        <path
-                          fillRule="evenodd"
-                          d="M4.293 15.707a1 1 0 010-1.414L8.586 10 4.293 5.707a1 1 0 011.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
+                      Próximo
                     </button>
                   </div>
+                  <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm text-slate-200">
+                        Mostrando{" "}
+                        <span className="font-medium">
+                          {table.getState().pagination.pageIndex *
+                            table.getState().pagination.pageSize +
+                            1}
+                        </span>{" "}
+                        a{" "}
+                        <span className="font-medium">
+                          {Math.min(
+                            (table.getState().pagination.pageIndex + 1) *
+                              table.getState().pagination.pageSize,
+                            filePreviews.length
+                          )}
+                        </span>{" "}
+                        de{" "}
+                        <span className="font-medium">
+                          {filePreviews.length}
+                        </span>{" "}
+                        resultados
+                      </p>
+                    </div>
+                    <div>
+                      <nav
+                        className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px"
+                        aria-label="Pagination"
+                      >
+                        <button
+                          onClick={() => table.previousPage()}
+                          disabled={!table.getCanPreviousPage()}
+                          className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-slate-700 text-slate-200 text-sm font-medium ${
+                            !table.getCanPreviousPage()
+                              ? "text-slate-400 bg-slate-800 cursor-not-allowed"
+                              : "text-slate-200 bg-slate-800 hover:bg-slate-700"
+                          }`}
+                        >
+                          <span className="sr-only">Anterior</span>
+                          <ChevronLeftIcon
+                            className="h-5 w-5"
+                            aria-hidden="true"
+                          />
+                        </button>
+                        <button
+                          onClick={() => table.nextPage()}
+                          disabled={!table.getCanNextPage()}
+                          className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-slate-700 text-slate-200 text-sm font-medium ${
+                            !table.getCanNextPage()
+                              ? "text-slate-400 bg-slate-800 cursor-not-allowed"
+                              : "text-slate-200 bg-slate-800 hover:bg-slate-700"
+                          }`}
+                        >
+                          <span className="sr-only">Próximo</span>
+                          <ChevronRightIcon
+                            className="h-5 w-5"
+                            aria-hidden="true"
+                          />
+                        </button>
+                      </nav>
+                    </div>
+                  </div>
                 </div>
+              )}
 
-                <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                  Página {table.getState().pagination.pageIndex + 1} de{" "}
-                  {table.getPageCount()}
-                </div>
+              {/* Botão para processar */}
+              <div className="mt-6 flex justify-center">
+                <button
+                  type="button"
+                  onClick={processFiles}
+                  disabled={isProcessing || filePreviews.length === 0}
+                  className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${
+                    isProcessing || filePreviews.length === 0
+                      ? "bg-slate-600 cursor-not-allowed"
+                      : "bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  }`}
+                >
+                  {isDownloading ? (
+                    <>
+                      <ArrowPathIcon className="w-5 h-5 mr-2 animate-spin" />
+                      Processando ({progress}%)
+                    </>
+                  ) : (
+                    <>
+                      <ArrowDownTrayIcon className="w-5 h-5 mr-2" />
+                      Baixar Arquivos Renomeados
+                    </>
+                  )}
+                </button>
               </div>
             </div>
-          </div>
+          )}
         </div>
-      )}
-
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <button
-          onClick={processFiles}
-          disabled={
-            disabled ||
-            isProcessing ||
-            !referenceFile ||
-            files.length === 0 ||
-            !isPreviewReady
-          }
-          className={`px-4 py-2 rounded-md font-medium ${
-            disabled ||
-            isProcessing ||
-            !referenceFile ||
-            files.length === 0 ||
-            !isPreviewReady
-              ? "bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed"
-              : "bg-blue-600 hover:bg-blue-700 text-white"
-          } transition-colors`}
-        >
-          {isProcessing ? "Processando..." : "Processar e Baixar Arquivos"}
-        </button>
-
-        {files.length > 0 && referenceFile && (
-          <span className="text-sm text-gray-600 dark:text-gray-400">
-            {files.length} arquivo{files.length !== 1 ? "s" : ""} selecionado
-            {files.length !== 1 ? "s" : ""}
-          </span>
-        )}
       </div>
-
-      {isProcessing && (
-        <div className="mt-4">
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-            <div
-              className="bg-blue-600 h-2.5 rounded-full"
-              style={{ width: `${progress}%` }}
-            ></div>
-          </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Processando arquivos... {progress}%
-          </p>
-        </div>
-      )}
     </div>
   );
 };

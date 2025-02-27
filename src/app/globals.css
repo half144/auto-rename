@@ -11,6 +11,15 @@
   scrollbar-width: none; /* Firefox */
 }
 
+/* Cores personalizadas para o tema escuro */
+.dark .dark\:bg-gray-850 {
+  background-color: rgb(22, 27, 34);
+}
+
+.dark .dark\:bg-gray-750 {
+  background-color: rgb(31, 36, 43);
+}
+
 /* Table styles */
 .table-container {
   @apply overflow-hidden border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm;
@@ -33,7 +42,7 @@
 }
 
 .table-row {
-  @apply hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors;
+  @apply hover:bg-gray-50 dark:hover:bg-gray-800/50;
 }
 
 .table-cell {
