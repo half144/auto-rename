@@ -54,7 +54,6 @@ const ProcessFiles: React.FC<ProcessFilesProps> = ({
   const [isPreviewReady, setIsPreviewReady] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
 
-  // Estados para paginação
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalPages, setTotalPages] = useState(1);

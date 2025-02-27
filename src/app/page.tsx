@@ -60,7 +60,6 @@ export default function Home() {
     setAvailableColumns(columns);
   }, []);
 
-  // Função para renderizar o indicador de progresso
   const renderStepIndicator = (stepNumber: number, title: string) => {
     const isActive = activeStep >= stepNumber;
     const isCompleted = activeStep > stepNumber;

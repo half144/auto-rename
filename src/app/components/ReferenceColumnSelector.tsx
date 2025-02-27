@@ -36,16 +36,13 @@ const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
   const [showPreview, setShowPreview] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
 
-  // Função auxiliar para verificar se o selectedColumn está na lista de colunas atual
   const isColumnValid = useCallback((col: string, columnList: string[]) => {
     return col && columnList.includes(col);
   }, []);
 
-  // Função para selecionar uma coluna automaticamente APENAS na primeira vez
   const [hasSelectedInitialColumn, setHasSelectedInitialColumn] =
     useState(false);
 
-  // Memoize as funções de callback para evitar recriações a cada renderização
   const handleMatchColumnChange = useCallback(
     (column: string) => {
       setSelectedColumn(column);
@@ -103,15 +100,11 @@ const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
     },
   });
 
-  // Efeito para carregar os dados do arquivo de referência
   useEffect(() => {
     if (!referenceFile) return;
 
-    // Usar uma variável para controlar se o componente ainda está montado
     let isMounted = true;
 
-    // Definir um pequeno atraso antes de mostrar o indicador de carregamento
-    // para evitar flashes rápidos de loading
     const loadingTimeout = setTimeout(() => {
       if (isMounted) setIsLoading(true);
     }, 200);
@@ -121,21 +114,17 @@ const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
 
       try {
         const data = await readExcelFile(referenceFile);
-        // Verificar se o componente ainda está montado antes de atualizar o estado
         if (!isMounted) return;
 
         if (data && data.length > 0) {
-          // Extrair os nomes das colunas do primeiro objeto
           const columnNames = Object.keys(data[0]);
           setColumns(columnNames);
           onAvailableColumnsChange(columnNames);
 
-          // Seleção automática da coluna APENAS se não tiver sido selecionada uma coluna ainda
           if (
             !hasSelectedInitialColumn ||
             !isColumnValid(selectedColumn, columnNames)
           ) {
-            // Tentar encontrar uma coluna de correspondência adequada
             const possibleMatchColumns = [
               "id",
               "matricula",
@@ -147,7 +136,6 @@ const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
               "chave",
             ];
 
-            // Procurar por uma coluna que corresponda a um dos possíveis nomes
             const matchColumn = columnNames.find((col) =>
               possibleMatchColumns.includes(col.toLowerCase())
             );
@@ -157,15 +145,13 @@ const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
               onMatchColumnChange(matchColumn);
               setHasSelectedInitialColumn(true);
             } else if (columnNames.length > 0) {
-              // Se não encontrar, usar a primeira coluna
               setSelectedColumn(columnNames[0]);
               onMatchColumnChange(columnNames[0]);
               setHasSelectedInitialColumn(true);
             }
           }
 
-          // Definir os dados de visualização
-          setPreviewData(data.slice(0, 10)); // Mostrar apenas as primeiras 10 linhas
+          setPreviewData(data.slice(0, 10));
           setShowPreview(true);
         } else {
           setError("Nenhum dado encontrado no arquivo de referência.");
@@ -185,7 +171,6 @@ const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
 
     loadReferenceFile();
 
-    // Função de limpeza para evitar atualizações de estado após o componente ser desmontado
     return () => {
       isMounted = false;
       clearTimeout(loadingTimeout);
@@ -199,7 +184,6 @@ const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
     isColumnValid,
   ]);
 
-  // Função para ler o arquivo Excel
   const readExcelFile = async (file: File): Promise<Record<string, any>[]> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -214,10 +198,8 @@ const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
 
           let workbook;
           if (file.name.endsWith(".csv")) {
-            // Para arquivos CSV
             workbook = XLSX.read(data, { type: "binary" });
           } else {
-            // Para arquivos Excel
             workbook = XLSX.read(data, { type: "array" });
           }
 
@@ -257,10 +239,8 @@ const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
     setShowPreview(!showPreview);
   };
 
-  // Efeito para controlar a visibilidade do componente
   useEffect(() => {
     if (referenceFile) {
-      // Pequeno atraso para garantir uma transição suave
       const timer = setTimeout(() => {
         setIsVisible(true);
       }, 100);
@@ -396,7 +376,6 @@ const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
                       </table>
                     </div>
 
-                    {/* Paginação */}
                     {previewData.length > 5 && (
                       <div className="px-4 py-3 flex items-center justify-between border-t border-slate-700 bg-slate-800 sm:px-6">
                         <div className="flex-1 flex justify-between sm:hidden">
