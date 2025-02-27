@@ -1,0 +1,8 @@
+---
+description: style and tailwind config
+globs: 
+---
+
+# Your rule content
+
+- NEVER TOUCH POSTCSS CONFIG OR STYLES TO FIX TAILWIND

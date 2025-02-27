@@ -1,36 +1,73 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Renomeador Automático de Arquivos
 
-## Getting Started
+Aplicação web para renomear múltiplos arquivos com base em um arquivo de referência Excel (.xlsx) ou CSV (.csv).
 
-First, run the development server:
+## Funcionalidades
+
+- Upload de múltiplos arquivos para renomeação
+- Upload de um arquivo de referência (Excel ou CSV) contendo informações para renomeação
+- Seleção da coluna de correspondência para identificar os arquivos
+- Personalização do formato de renomeação usando placeholders
+- Prévia dos arquivos renomeados antes do processamento
+- Download dos arquivos renomeados em um arquivo ZIP
+
+## Como usar
+
+1. **Selecione os arquivos**
+
+   - Faça upload dos arquivos que deseja renomear
+   - Faça upload do arquivo de referência (Excel ou CSV)
+
+2. **Configure a correspondência**
+
+   - Selecione a coluna do arquivo de referência que será usada para identificar os arquivos
+   - A aplicação tentará encontrar correspondências entre os nomes dos arquivos e os valores na coluna selecionada
+
+3. **Configure o formato de renomeação**
+
+   - Use placeholders como `{nome}`, `{matricula}`, etc. para personalizar o formato
+   - Os placeholders disponíveis dependem das colunas presentes no arquivo de referência
+   - Use `{extensao}` para manter a extensão original do arquivo
+
+4. **Processe os arquivos**
+   - Visualize a prévia dos arquivos renomeados
+   - Clique em "Processar e Baixar Arquivos" para gerar o arquivo ZIP com os arquivos renomeados
+
+## Tecnologias utilizadas
+
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS
+- XLSX (para processamento de arquivos Excel/CSV)
+- JSZip (para geração de arquivos ZIP)
+- React Dropzone (para upload de arquivos)
+
+## Desenvolvimento
+
+### Requisitos
+
+- Node.js 18.0.0 ou superior
+- npm ou yarn
+
+### Instalação
 
 ```bash
+# Instalar dependências
+npm install
+
+# Iniciar servidor de desenvolvimento
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+A aplicação estará disponível em [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Build para produção
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+# Gerar build de produção
+npm run build
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# Iniciar servidor de produção
+npm start
+```
