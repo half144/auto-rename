@@ -99,6 +99,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
               </span>
             )}
           </div>
+
           <div
             {...getReferenceRootProps()}
             className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer flex-1 flex flex-col justify-center ${
