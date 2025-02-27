@@ -1,15 +1,18 @@
-# Renomeador Automático de Arquivos
+# Renomeador Automático de Arquivos (NameIt)
 
 <div align="center">
   <img src="https://img.shields.io/badge/Next.js-15.2.0-000000?style=for-the-badge&logo=next.js&logoColor=white" alt="Next.js" />
   <img src="https://img.shields.io/badge/React-19.0.0-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React" />
   <img src="https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/Tailwind_CSS-4.0+-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind" />
+  <img src="https://img.shields.io/badge/Tauri-2.3.0-FFC131?style=for-the-badge&logo=tauri&logoColor=white" alt="Tauri" />
 </div>
 
 ## 📋 Sobre o Projeto
 
-Aplicação web desenvolvida para facilitar o processo de renomeação em lote de múltiplos arquivos utilizando uma planilha de referência no formato Excel (.xlsx) ou CSV (.csv). Ideal para professores, profissionais administrativos, gerentes de documentos e qualquer pessoa que precise lidar com grande volume de arquivos que precisam seguir um padrão específico de nomenclatura.
+Aplicação desenvolvida para facilitar o processo de renomeação em lote de múltiplos arquivos utilizando uma planilha de referência no formato Excel (.xlsx) ou CSV (.csv). Ideal para professores, profissionais administrativos, gerentes de documentos e qualquer pessoa que precise lidar com grande volume de arquivos que precisam seguir um padrão específico de nomenclatura.
+
+Disponível como aplicação web e como aplicativo desktop multiplataforma (Windows, macOS e Linux) através do Tauri.
 
 ## ✨ Funcionalidades
 
@@ -21,6 +24,7 @@ Aplicação web desenvolvida para facilitar o processo de renomeação em lote d
 - 📦 Download dos arquivos renomeados em um arquivo ZIP compactado
 - 🔄 Processamento totalmente no navegador (sem envio de dados para o servidor)
 - 📱 Interface responsiva para uso em dispositivos móveis e desktop
+- 🖥️ Versão desktop nativa com Tauri para melhor desempenho e experiência do usuário
 
 ## 🚀 Como Usar
 
@@ -69,6 +73,27 @@ Aplicação web desenvolvida para facilitar o processo de renomeação em lote d
 - **XLSX**: Biblioteca para processamento de arquivos Excel/CSV no navegador
 - **JSZip**: Biblioteca para geração de arquivos ZIP no navegador
 - **React Dropzone**: Componente React para facilitar upload de arquivos
+- **Tauri**: Framework para criar aplicativos desktop nativos usando tecnologias web
+
+## 📱 Versão Desktop com Tauri
+
+O projeto inclui uma versão desktop nativa construída com Tauri, oferecendo várias vantagens:
+
+- **Desempenho nativo**: Execução mais rápida comparada a aplicações Electron
+- **Tamanho reduzido**: Instaladores muito menores (geralmente menos de 10MB)
+- **Segurança aprimorada**: Modelo de segurança mais restrito por padrão
+- **Acesso ao sistema de arquivos**: Interação direta com arquivos locais
+- **Experiência de usuário nativa**: Interface integrada ao sistema operacional
+
+### Instalação da Versão Desktop
+
+Baixe o instalador apropriado para seu sistema operacional na seção de [Releases](https://github.com/half144/auto-rename/releases) do GitHub.
+
+Disponível para:
+
+- Windows (.msi, .exe)
+- macOS (.dmg, .app)
+- Linux (.AppImage, .deb, .rpm)
 
 ## 🧰 Desenvolvimento
 
@@ -76,6 +101,7 @@ Aplicação web desenvolvida para facilitar o processo de renomeação em lote d
 
 - Node.js 18.0.0 ou superior
 - npm ou yarn
+- Rust (para desenvolvimento da versão Tauri)
 
 ### Instalação
 
@@ -89,42 +115,54 @@ npm install
 # ou
 yarn install
 
-# Iniciar servidor de desenvolvimento
+# Iniciar servidor de desenvolvimento web
 npm run dev
 # ou
 yarn dev
+
+# Iniciar aplicação Tauri em modo de desenvolvimento
+npm run tauri dev
+# ou
+yarn tauri dev
 ```
 
-A aplicação estará disponível em [http://localhost:3000](http://localhost:3000).
+A aplicação web estará disponível em [http://localhost:3000](http://localhost:3000).
 
 ### Build para Produção
 
 ```bash
-# Gerar build de produção
+# Gerar build de produção web
 npm run build
 # ou
 yarn build
 
-# Iniciar servidor de produção
+# Iniciar servidor de produção web
 npm start
 # ou
 yarn start
+
+# Gerar instaladores da versão desktop (Tauri)
+npm run tauri build
+# ou
+yarn tauri build
 ```
+
+Os instaladores da versão desktop serão gerados na pasta `src-tauri/target/release/bundle`.
 
 ## 📝 Estrutura do Projeto
 
 ```
 auto-rename/
-├── src/
+├── src/                              # Código fonte frontend (Next.js/React)
 │   ├── app/
-│   │   ├── components/
-│   │   │   ├── FileUploader.tsx      # Componente para upload de arquivos
-│   │   │   ├── FormatConfigurator.tsx # Configuração do formato de renomeação
-│   │   │   ├── ProcessFiles.tsx      # Processamento dos arquivos
-│   │   │   └── ReferenceColumnSelector.tsx # Seleção da coluna de referência
+│   │   ├── components/               # Componentes React
 │   │   ├── page.tsx                  # Página principal da aplicação
 │   │   ├── layout.tsx                # Layout da aplicação
 │   │   └── globals.css               # Estilos globais
+├── src-tauri/                        # Código fonte backend (Rust/Tauri)
+│   ├── src/                          # Código Rust
+│   ├── Cargo.toml                    # Dependências Rust
+│   └── tauri.conf.json               # Configuração do Tauri
 ├── public/                           # Arquivos estáticos
 ├── package.json                      # Dependências e scripts
 └── README.md                         # Este arquivo
