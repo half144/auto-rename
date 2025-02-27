@@ -114,7 +114,7 @@ yarn start
 ## 📝 Estrutura do Projeto
 
 ```
-renomeador-automatico/
+auto-rename/
 ├── src/
 │   ├── app/
 │   │   ├── components/
