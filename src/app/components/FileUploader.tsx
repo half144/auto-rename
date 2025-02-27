@@ -23,29 +23,17 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   const [files, setFiles] = useState<File[]>([]);
   const [referenceFile, setReferenceFile] = useState<File | null>(null);
 
-  const handleFilesUploaded = useCallback(
-    (newFiles: File[]) => {
-      onFilesUploaded(newFiles);
-    },
-    [onFilesUploaded]
-  );
-
-  const handleReferenceFileUploaded = useCallback(
-    (file: File) => {
-      onReferenceFileUploaded(file);
-    },
-    [onReferenceFileUploaded]
-  );
-
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
       setFiles((prevFiles) => {
         const updatedFiles = [...prevFiles, ...acceptedFiles];
-        handleFilesUploaded(updatedFiles);
+        setTimeout(() => {
+          onFilesUploaded(updatedFiles);
+        }, 0);
         return updatedFiles;
       });
     },
-    [handleFilesUploaded]
+    [onFilesUploaded]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
@@ -54,10 +42,12 @@ const FileUploader: React.FC<FileUploaderProps> = ({
     (acceptedFiles: File[]) => {
       if (acceptedFiles.length > 0) {
         setReferenceFile(acceptedFiles[0]);
-        handleReferenceFileUploaded(acceptedFiles[0]);
+        setTimeout(() => {
+          onReferenceFileUploaded(acceptedFiles[0]);
+        }, 0);
       }
     },
-    [handleReferenceFileUploaded]
+    [onReferenceFileUploaded]
   );
 
   const {
@@ -78,17 +68,21 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       setFiles((prevFiles) => {
         const newFiles = [...prevFiles];
         newFiles.splice(index, 1);
-        handleFilesUploaded(newFiles);
+        setTimeout(() => {
+          onFilesUploaded(newFiles);
+        }, 0);
         return newFiles;
       });
     },
-    [handleFilesUploaded]
+    [onFilesUploaded]
   );
 
   const removeReferenceFile = useCallback(() => {
     setReferenceFile(null);
-    handleReferenceFileUploaded(null as unknown as File);
-  }, [handleReferenceFileUploaded]);
+    setTimeout(() => {
+      onReferenceFileUploaded(null as unknown as File);
+    }, 0);
+  }, [onReferenceFileUploaded]);
 
   return (
     <div className="space-y-6">
