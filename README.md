@@ -1,10 +1,10 @@
 # Renomeador Automático de Arquivos
 
 <div align="center">
-  <img src="https://img.shields.io/badge/Next.js-13.5+-000000?style=for-the-badge&logo=next.js&logoColor=white" alt="Next.js" />
-  <img src="https://img.shields.io/badge/React-18.0+-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React" />
+  <img src="https://img.shields.io/badge/Next.js-15.2.0-000000?style=for-the-badge&logo=next.js&logoColor=white" alt="Next.js" />
+  <img src="https://img.shields.io/badge/React-19.0.0-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React" />
   <img src="https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
-  <img src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind" />
+  <img src="https://img.shields.io/badge/Tailwind_CSS-4.0+-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind" />
 </div>
 
 ## 📋 Sobre o Projeto
@@ -81,8 +81,8 @@ Aplicação web desenvolvida para facilitar o processo de renomeação em lote d
 
 ```bash
 # Clonar o repositório
-git clone https://seu-repositorio/renomeador-automatico.git
-cd renomeador-automatico
+git clone https://github.com/half144/auto-rename.git
+cd auto-rename
 
 # Instalar dependências
 npm install
