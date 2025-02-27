@@ -1,0 +1,10 @@
+# *
+User-agent: *
+Allow: /
+
+# Host
+Host: https://auto-rename-zeta.vercel.app
+
+# Sitemaps
+Sitemap: https://auto-rename-zeta.vercel.app/sitemap.xml
+Sitemap: https://auto-rename-zeta.vercel.app/server-sitemap.xml

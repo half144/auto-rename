@@ -5,7 +5,10 @@ import FileUploader from "./components/FileUploader";
 import FormatConfigurator from "./components/FormatConfigurator";
 import ProcessFiles from "./components/ProcessFiles";
 import ReferenceColumnSelector from "./components/ReferenceColumnSelector";
-import { CheckCircleIcon } from "@heroicons/react/24/solid";
+import {
+  CheckCircleIcon,
+  DocumentDuplicateIcon,
+} from "@heroicons/react/24/solid";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 
 export default function Home() {
@@ -91,11 +94,14 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800">
       <div className="max-w-6xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-10">
-          <h1 className="text-4xl font-bold text-slate-200">
-            Renomeador Automático de Arquivos
-          </h1>
-          <p className="mt-3 text-xl text-slate-400 max-w-2xl mx-auto">
+        <div className="mb-10">
+          <div className="flex justify-center items-center mb-2">
+            <DocumentDuplicateIcon className="h-12 w-12 text-blue-500" />
+            <span className="text-blue-400 text-4xl ml-2 font-bold">Name</span>
+            <span className="text-blue-600 text-4xl font-bold">It</span>
+          </div>
+
+          <p className="mt-3 text-center text-xl text-slate-400 max-w-2xl mx-auto">
             Simplifique o processo de renomeação de arquivos em massa com base
             em dados de referência
           </p>
