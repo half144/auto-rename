@@ -3,6 +3,7 @@ import {
   DocumentTextIcon,
   PlusCircleIcon,
   InformationCircleIcon,
+  SparklesIcon,
 } from "@heroicons/react/24/outline";
 
 interface FormatConfiguratorProps {
@@ -17,7 +18,8 @@ const FormatConfigurator: React.FC<FormatConfiguratorProps> = ({
   availableColumns = [],
 }) => {
   const [format, setFormat] = useState(initialFormat);
-  const [showHelp, setShowHelp] = useState(false);
+  const [showHelp, setShowHelp] = useState(true);
+  const [previewName, setPreviewName] = useState("documento.pdf");
 
   // Atualizar o formato quando o initialFormat mudar
   useEffect(() => {
@@ -56,93 +58,309 @@ const FormatConfigurator: React.FC<FormatConfiguratorProps> = ({
     });
   }, []);
 
+  // Gerar uma prévia dinâmica com valores de exemplo para cada coluna
+  const generateDynamicPreview = useCallback(() => {
+    if (!format) return "Digite um formato para ver a prévia";
+    
+    // Valores de exemplo para diferentes tipos de colunas comuns
+    const exampleValues: {[key: string]: string} = {
+      nome: "João Silva",
+      matricula: "12345",
+      cpf: "123.456.789-00",
+      data: "2023-01-15",
+      cargo: "Analista",
+      departamento: "TI",
+      extensao: "pdf"
+    };
+    
+    // Para qualquer coluna que não temos valor predefinido, criar um valor genérico
+    let result = format;
+    const placeholders = format.match(/{([^}]+)}/g) || [];
+    
+    for (const placeholder of placeholders) {
+      const fieldName = placeholder.substring(1, placeholder.length - 1);
+      const value = exampleValues[fieldName] || `valor_${fieldName}`;
+      result = result.replace(placeholder, value);
+    }
+    
+    return result + (result.includes(".") ? "" : ".pdf");
+  }, [format]);
+
+  // Gera modelos recomendados baseados nas colunas disponíveis
+  const generateRecommendedModels = useCallback(() => {
+    const models = [];
+    
+    // Verifica colunas comuns para identificar funcionários
+    const hasName = availableColumns.some(col => 
+      col.toLowerCase().includes('nome') || 
+      col.toLowerCase().includes('colaborador'));
+      
+    const hasId = availableColumns.some(col => 
+      col.toLowerCase().includes('id') || 
+      col.toLowerCase().includes('matricula') || 
+      col.toLowerCase().includes('matrícula'));
+      
+    const hasCpf = availableColumns.some(col => 
+      col.toLowerCase().includes('cpf') || 
+      col.toLowerCase().includes('documento'));
+      
+    const hasCargo = availableColumns.some(col => 
+      col.toLowerCase().includes('cargo') || 
+      col.toLowerCase().includes('função') || 
+      col.toLowerCase().includes('funcao'));
+      
+    const hasDepartamento = availableColumns.some(col => 
+      col.toLowerCase().includes('departamento') || 
+      col.toLowerCase().includes('setor') || 
+      col.toLowerCase().includes('área') || 
+      col.toLowerCase().includes('area'));
+      
+    const hasData = availableColumns.some(col => 
+      col.toLowerCase().includes('data'));
+
+    // Encontra o nome das colunas
+    const nameColumn = availableColumns.find(col => 
+      col.toLowerCase().includes('nome') || 
+      col.toLowerCase().includes('colaborador'));
+      
+    const idColumn = availableColumns.find(col => 
+      col.toLowerCase().includes('id') || 
+      col.toLowerCase().includes('matricula') || 
+      col.toLowerCase().includes('matrícula'));
+      
+    const cpfColumn = availableColumns.find(col => 
+      col.toLowerCase().includes('cpf') || 
+      col.toLowerCase().includes('documento'));
+      
+    const cargoColumn = availableColumns.find(col => 
+      col.toLowerCase().includes('cargo') || 
+      col.toLowerCase().includes('função') || 
+      col.toLowerCase().includes('funcao'));
+      
+    const departamentoColumn = availableColumns.find(col => 
+      col.toLowerCase().includes('departamento') || 
+      col.toLowerCase().includes('setor') || 
+      col.toLowerCase().includes('área') || 
+      col.toLowerCase().includes('area'));
+      
+    const dataColumn = availableColumns.find(col => 
+      col.toLowerCase().includes('data'));
+
+    // Criar modelos baseados nas colunas encontradas
+    if (hasName) {
+      models.push({
+        name: "Nome do colaborador",
+        format: `{${nameColumn}}`,
+        description: "João Silva.pdf",
+        recommended: true
+      });
+    }
+    
+    if (hasName && hasId) {
+      models.push({
+        name: "Nome - Matrícula",
+        format: `{${nameColumn}} - {${idColumn}}`,
+        description: "João Silva - 12345.pdf",
+        recommended: true,
+        priority: 1
+      });
+      
+      models.push({
+        name: "Matrícula - Nome",
+        format: `{${idColumn}} - {${nameColumn}}`,
+        description: "12345 - João Silva.pdf",
+        recommended: true
+      });
+      
+      models.push({
+        name: "Nome (Matrícula)",
+        format: `{${nameColumn}} ({${idColumn}})`,
+        description: "João Silva (12345).pdf",
+        recommended: true
+      });
+    }
+    
+    if (hasName && hasCargo) {
+      models.push({
+        name: "Nome - Cargo",
+        format: `{${nameColumn}} - {${cargoColumn}}`,
+        description: "João Silva - Analista.pdf",
+        recommended: true
+      });
+    }
+    
+    if (hasName && hasDepartamento) {
+      models.push({
+        name: "Nome - Departamento",
+        format: `{${nameColumn}} - {${departamentoColumn}}`,
+        description: "João Silva - RH.pdf",
+        recommended: true
+      });
+    }
+    
+    if (hasId && hasName && hasDepartamento) {
+      models.push({
+        name: "Completo",
+        format: `{${idColumn}} - {${nameColumn}} - {${departamentoColumn}}`,
+        description: "12345 - João Silva - RH.pdf",
+        recommended: true
+      });
+    }
+    
+    if (hasCpf && hasName) {
+      models.push({
+        name: "CPF - Nome",
+        format: `{${cpfColumn}} - {${nameColumn}}`,
+        description: "123.456.789-00 - João Silva.pdf",
+        recommended: true
+      });
+    }
+    
+    if (hasData && hasName) {
+      models.push({
+        name: "Data - Nome",
+        format: `{${dataColumn}} - {${nameColumn}}`,
+        description: "2023-01-15 - João Silva.pdf",
+        recommended: true
+      });
+    }
+    
+    // Se não encontrou modelos específicos, cria alguns modelos básicos com as primeiras 2-3 colunas
+    if (models.length === 0 && availableColumns.length > 0) {
+      if (availableColumns.length >= 1) {
+        models.push({
+          name: `${availableColumns[0]}`,
+          format: `{${availableColumns[0]}}`,
+          description: `Usando ${availableColumns[0]}.pdf`,
+          recommended: false
+        });
+      }
+      
+      if (availableColumns.length >= 2) {
+        models.push({
+          name: `${availableColumns[0]} - ${availableColumns[1]}`,
+          format: `{${availableColumns[0]}} - {${availableColumns[1]}}`,
+          description: `Combina ${availableColumns[0]} e ${availableColumns[1]}.pdf`,
+          recommended: false
+        });
+      }
+      
+      if (availableColumns.length >= 3) {
+        models.push({
+          name: `Combinação de três campos`,
+          format: `{${availableColumns[0]}} - {${availableColumns[1]}} - {${availableColumns[2]}}`,
+          description: `Combina três campos.pdf`,
+          recommended: false
+        });
+      }
+    }
+    
+    // Ordena os modelos para que os prioritários apareçam primeiro
+    models.sort((a, b) => {
+      if (a.priority && !b.priority) return -1;
+      if (!a.priority && b.priority) return 1;
+      if (a.priority && b.priority) return a.priority - b.priority;
+      return 0;
+    });
+    
+    return models;
+  }, [availableColumns]);
+
   // Exemplos de formatos
-  const formatExamples = [
-    {
-      name: "Nome - Matrícula",
-      format: "{nome} - {matricula}",
-      description: "Ex: João Silva - 12345",
-    },
-    {
-      name: "Matrícula_Nome",
-      format: "{matricula}_{nome}",
-      description: "Ex: 12345_JoãoSilva",
-    },
-    {
-      name: "Data - Nome",
-      format: "{data} - {nome}",
-      description: "Ex: 2023-01-01 - João Silva",
-    },
-  ];
+  const formatExamples = generateRecommendedModels();
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
-        <div className="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center">
+    <div className="space-y-4">
+      {/* Modelos recomendados (mostrados primeiro) */}
+      {formatExamples.length > 0 && (
+        <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden shadow-sm">
+          <div className="p-3 border-b border-slate-700">
+            <h3 className="text-sm font-medium text-slate-200 flex items-center">
+              <SparklesIcon className="w-4 h-4 text-yellow-400 mr-2" />
+              Modelos recomendados
+            </h3>
+          </div>
+          <div className="p-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {formatExamples.map((example, index) => (
+                <div
+                  key={index}
+                  className={`border ${example.recommended ? 'border-blue-600 bg-blue-900/20' : 'border-slate-600'} rounded p-2 hover:bg-slate-700 cursor-pointer transition-colors`}
+                  onClick={() => setFormat(example.format)}
+                >
+                  <h4 className="font-medium text-slate-300 text-xs">
+                    {example.name}
+                  </h4>
+                  <p className="text-xs text-blue-400 font-mono mt-1">
+                    {example.format}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {example.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden shadow-sm">
+        <div className="p-3 border-b border-slate-700 flex justify-between items-center">
           <div className="flex items-center">
             <DocumentTextIcon className="w-5 h-5 text-blue-500 mr-2" />
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <h3 className="text-sm font-medium text-slate-200">
               Formato de renomeação
             </h3>
           </div>
           <button
             type="button"
             onClick={() => setShowHelp(!showHelp)}
-            className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+            className="text-xs text-slate-400 hover:text-slate-300 flex items-center"
           >
-            <InformationCircleIcon className="w-5 h-5" />
+            {showHelp ? "Ocultar ajuda" : "Ajuda"} <InformationCircleIcon className="w-4 h-4 ml-1" />
           </button>
         </div>
 
         {showHelp && (
-          <div className="p-4 bg-blue-50 dark:bg-blue-900/10 border-b border-gray-200 dark:border-gray-700">
-            <h4 className="font-medium text-blue-700 dark:text-blue-400 text-sm mb-2">
-              Como funciona:
-            </h4>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-              Digite o formato desejado para os nomes dos arquivos. Use{" "}
-              {"{coluna}"} para inserir valores das colunas do arquivo de
-              referência.
-            </p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Exemplo: Para um arquivo com nome "documento.pdf" e uma linha na
-              planilha com nome "João" e matrícula "12345", o formato{" "}
-              <span className="font-mono bg-gray-100 dark:bg-gray-700 px-1 rounded">
-                {"{matricula}"}_{"{nome}"}
-              </span>{" "}
-              resultará em "12345_João.pdf"
-            </p>
+          <div className="p-3 bg-slate-700 border-b border-slate-600">
+            <div className="flex items-center text-sm text-slate-300 mb-2">
+              <InformationCircleIcon className="w-4 h-4 text-blue-400 mr-1" /> 
+              Escolha um dos modelos acima ou crie seu próprio formato
+            </div>
+            <div className="bg-slate-800 p-2 rounded border border-slate-600">
+              <div className="text-xs">
+                <p className="text-slate-300 mb-1">Exemplo: escolher <span className="text-blue-400">{"{nome}"} - {"{matricula}"}</span> resulta em <span className="text-green-400">João Silva - 12345.pdf</span></p>
+              </div>
+            </div>
           </div>
         )}
 
-        <div className="p-4">
-          <div className="mb-4">
+        <div className="p-3">
+          <div className="mb-3">
             <label
               htmlFor="formatInput"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+              className="block text-sm font-medium text-slate-300 mb-1"
             >
               Digite o formato:
             </label>
-            <div className="flex">
+            <div className="flex mb-2">
               <input
                 type="text"
                 id="formatInput"
                 value={format}
                 onChange={handleFormatChange}
-                placeholder="Ex: {nome} - {matricula}"
-                className="flex-1 block w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:text-white sm:text-sm"
+                placeholder="Escolha um modelo acima ou digite aqui"
+                className="flex-1 block w-full rounded-md border-slate-600 bg-slate-800 text-white text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
               />
             </div>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {format
-                ? `Prévia: ${format.replace(/{([^}]+)}/g, "valor_da_$1")}`
-                : "Digite um formato para ver a prévia"}
-            </p>
+            <div className="p-2 bg-slate-700 rounded border border-slate-600">
+              <p className="text-xs text-slate-300">Prévia: <span className="font-mono text-sm text-white">{generateDynamicPreview()}</span></p>
+            </div>
           </div>
 
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Colunas disponíveis:
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">
+              Adicionar campos:
             </label>
             <div className="flex flex-wrap gap-2">
               {availableColumns.map((column) => (
@@ -150,43 +368,21 @@ const FormatConfigurator: React.FC<FormatConfiguratorProps> = ({
                   key={column}
                   type="button"
                   onClick={() => addPlaceholder(column)}
-                  className="inline-flex items-center px-2.5 py-1.5 border border-gray-300 dark:border-gray-600 shadow-sm text-xs font-medium rounded text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-650 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  className="inline-flex items-center px-2 py-1 border border-slate-600 text-xs font-medium rounded text-slate-300 bg-slate-700 hover:bg-slate-600"
                 >
-                  <PlusCircleIcon className="w-4 h-4 mr-1 text-blue-500" />
+                  <PlusCircleIcon className="w-3 h-3 mr-1 text-blue-400" />
                   {column}
                 </button>
               ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Exemplos de formato */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
-        <div className="p-4 bg-slate-800 border-b border-slate-700">
-          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Exemplos de formato
-          </h3>
-        </div>
-        <div className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {formatExamples.map((example, index) => (
-              <div
-                key={index}
-                className="border border-slate-700 rounded-lg p-3 hover:bg-slate-700 cursor-pointer"
-                onClick={() => setFormat(example.format)}
+              <button
+                type="button"
+                onClick={() => addPlaceholder("extensao")}
+                className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-700"
               >
-                <h4 className="font-medium text-gray-700 dark:text-gray-300 text-sm">
-                  {example.name}
-                </h4>
-                <p className="text-xs text-blue-600 dark:text-blue-400 font-mono mt-1">
-                  {example.format}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {example.description}
-                </p>
-              </div>
-            ))}
+                <PlusCircleIcon className="w-3 h-3 mr-1" />
+                extensao
+              </button>
+            </div>
           </div>
         </div>
       </div>

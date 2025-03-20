@@ -15,6 +15,7 @@ import {
   ChevronRightIcon,
   ArrowPathIcon,
   CheckCircleIcon,
+  InformationCircleIcon,
 } from "@heroicons/react/24/outline";
 
 interface ReferenceColumnSelectorProps {
@@ -33,8 +34,9 @@ const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewData, setPreviewData] = useState<Record<string, any>[]>([]);
-  const [showPreview, setShowPreview] = useState(false);
+  const [showPreview, setShowPreview] = useState(true);
   const [isVisible, setIsVisible] = useState(false);
+  const [showHelp, setShowHelp] = useState(true);
 
   const isColumnValid = useCallback((col: string, columnList: string[]) => {
     return col && columnList.includes(col);
@@ -250,97 +252,175 @@ const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
     }
   }, [referenceFile]);
 
+  // Sugestão de colunas comuns para correspondência
+  const commonMatchColumns = [
+    "id", "matricula", "matrícula", "código", "codigo",
+    "registro", "identificador", "chave", "cpf", "nome", "colaborador"
+  ];
+
+  // Descreve o tipo de cada coluna de correspondência para ajudar o usuário
+  const getColumnTypeDescription = useCallback((columnName: string) => {
+    const lowerName = columnName.toLowerCase();
+    
+    if (lowerName.includes("id") || lowerName.includes("código") || 
+        lowerName.includes("codigo") || lowerName.includes("matricula") || 
+        lowerName.includes("matrícula") || lowerName.includes("registro")) {
+      return "Identificador único";
+    }
+    
+    if (lowerName.includes("cpf") || lowerName.includes("cnpj")) {
+      return "Documento";
+    }
+    
+    if (lowerName.includes("nome") || lowerName.includes("colaborador")) {
+      return "Nome completo";
+    }
+    
+    return "Valor único";
+  }, []);
+
   return (
     <div
-      className={`space-y-6 ${
+      className={`space-y-4 ${
         isVisible ? "opacity-100" : "opacity-0"
       } transition-opacity duration-300`}
     >
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
-        <div className="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center">
+      {showHelp && (
+        <div className="p-3 bg-slate-700 rounded-lg border border-slate-600">
+          <div className="flex items-center">
+            <InformationCircleIcon className="h-5 w-5 text-blue-400 flex-shrink-0" />
+            <p className="ml-2 text-sm text-slate-300">
+              Selecione a coluna da planilha que corresponde ao identificador nos nomes dos arquivos 
+              <span className="block text-xs mt-1 text-slate-400">Ex: Se os arquivos têm números de matrícula (12345.pdf), escolha a coluna "matrícula"</span>
+            </p>
+            <button
+              onClick={() => setShowHelp(false)}
+              className="ml-2 text-xs text-slate-400 hover:text-slate-300"
+            >
+              Ocultar
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden shadow-sm">
+        <div className="p-3 bg-slate-800 border-b border-slate-700 flex justify-between items-center">
           <div className="flex items-center">
             <TableCellsIcon className="w-5 h-5 text-blue-500 mr-2" />
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Configuração da coluna de correspondência
+            <h3 className="text-sm font-medium text-slate-200">
+              Selecione a coluna de identificação
             </h3>
           </div>
-          {previewData.length > 0 && (
-            <button
-              type="button"
-              onClick={togglePreview}
-              className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-            >
-              {showPreview ? (
-                <EyeSlashIcon className="w-5 h-5" />
-              ) : (
-                <EyeIcon className="w-5 h-5" />
-              )}
-            </button>
-          )}
+          <div className="flex items-center space-x-2">
+            {!showHelp && (
+              <button
+                type="button"
+                onClick={() => setShowHelp(true)}
+                className="text-xs text-slate-400 hover:text-slate-300 flex items-center"
+              >
+                <InformationCircleIcon className="h-4 w-4 mr-1" />
+                Ajuda
+              </button>
+            )}
+            {previewData.length > 0 && (
+              <button
+                type="button"
+                onClick={togglePreview}
+                className="text-xs text-slate-400 hover:text-slate-300 flex items-center"
+              >
+                {showPreview ? (
+                  <>
+                    <EyeSlashIcon className="w-4 h-4 mr-1" />
+                    Ocultar tabela
+                  </>
+                ) : (
+                  <>
+                    <EyeIcon className="w-4 h-4 mr-1" />
+                    Mostrar tabela
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="p-4 min-h-[200px]">
+        <div className="p-3 min-h-[150px]">
           {isLoading ? (
-            <div className="flex items-center justify-center py-8 h-full">
-              <ArrowPathIcon className="w-6 h-6 text-blue-500 animate-spin" />
-              <span className="ml-2 text-gray-600 dark:text-gray-400">
-                Carregando dados do arquivo...
+            <div className="flex items-center justify-center py-4">
+              <ArrowPathIcon className="w-5 h-5 text-blue-500 animate-spin mr-2" />
+              <span className="text-slate-400 text-sm">
+                Carregando dados...
               </span>
             </div>
           ) : error ? (
-            <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-md">
+            <div className="p-3 bg-red-900/20 text-red-400 rounded-md text-sm">
               {error}
             </div>
           ) : (
             <div className="space-y-4">
-              <div>
+              <div className="bg-slate-700 p-3 rounded border border-slate-600">
                 <label
                   htmlFor="matchColumn"
-                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                  className="block text-sm font-medium text-slate-200 mb-2"
                 >
-                  Selecione a coluna que contém o identificador para
-                  correspondência:
+                  Coluna que identifica cada arquivo:
                 </label>
-                <select
-                  id="matchColumn"
-                  value={selectedColumn}
-                  onChange={handleColumnChange}
-                  className="block w-full rounded-md border-gray-300 dark:border-gray-700 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:text-white sm:text-sm"
-                >
-                  {columns.map((column) => (
-                    <option key={column} value={column}>
-                      {column}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Esta coluna será usada para corresponder os arquivos com os
-                  dados de referência.
-                </p>
+                
+                <div className="flex flex-col md:flex-row md:items-center gap-3">
+                  <div className="flex-1">
+                    <select
+                      id="matchColumn"
+                      value={selectedColumn}
+                      onChange={handleColumnChange}
+                      className="block w-full rounded-md border-slate-600 bg-slate-800 text-white text-sm py-2 focus:border-blue-500 focus:ring-blue-500"
+                    >
+                      {columns.map((column) => {
+                        const isRecommended = commonMatchColumns.some(common => 
+                          column.toLowerCase().includes(common.toLowerCase()));
+                        
+                        return (
+                          <option key={column} value={column}>
+                            {column} {isRecommended ? "✓" : ""}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    
+                    {selectedColumn && (
+                      <div className="mt-1 flex items-center">
+                        <CheckCircleIcon className="w-4 h-4 text-green-500 mr-1" />
+                        <p className="text-xs text-green-400">
+                          {getColumnTypeDescription(selectedColumn)}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex-none text-xs text-slate-400 md:text-right bg-slate-800 p-2 rounded border border-slate-600 md:max-w-xs">
+                    O sistema buscará <span className="text-blue-400">{selectedColumn || "este valor"}</span> no nome dos seus arquivos
+                  </div>
+                </div>
               </div>
 
               {showPreview && previewData.length > 0 && (
-                <div className="mt-4">
-                  <div className="mb-2 flex justify-between items-center">
-                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Prévia dos dados (
-                      {previewData.length > 10
-                        ? "10 primeiras linhas"
-                        : `${previewData.length} linhas`}
-                      ):
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <h4 className="text-xs font-medium text-slate-300 flex items-center">
+                      <TableCellsIcon className="w-4 h-4 text-blue-500 mr-1" />
+                      Dados da planilha (a coluna selecionada está destacada)
                     </h4>
                   </div>
-                  <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                  <div className="border border-slate-700 rounded overflow-hidden">
                     <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                      <table className="min-w-full divide-y divide-slate-700">
                         <thead className="bg-slate-800">
                           <tr>
                             {table.getFlatHeaders().map((header) => (
                               <th
                                 key={header.id}
-                                className={`px-4 py-3 text-left text-xs font-medium text-slate-200 uppercase tracking-wider ${
+                                className={`px-3 py-2 text-left text-xs font-medium text-slate-300 ${
                                   header.column.id === selectedColumn
-                                    ? "bg-blue-50 dark:bg-blue-900/20"
+                                    ? "bg-blue-900/40 border-b-2 border-blue-500"
                                     : ""
                                 }`}
                               >
@@ -352,15 +432,15 @@ const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
                             ))}
                           </tr>
                         </thead>
-                        <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        <tbody className="bg-slate-800 divide-y divide-slate-700">
                           {table.getRowModel().rows.map((row) => (
                             <tr key={row.id} className="hover:bg-slate-700">
                               {row.getVisibleCells().map((cell) => (
                                 <td
                                   key={cell.id}
-                                  className={`px-4 py-2 text-sm text-slate-200 ${
+                                  className={`px-3 py-2 text-xs text-slate-300 ${
                                     cell.column.id === selectedColumn
-                                      ? "bg-blue-50 dark:bg-blue-900/10"
+                                      ? "bg-blue-900/20 border-l-2 border-r-2 border-blue-500"
                                       : ""
                                   }`}
                                 >
@@ -377,92 +457,41 @@ const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
                     </div>
 
                     {previewData.length > 5 && (
-                      <div className="px-4 py-3 flex items-center justify-between border-t border-slate-700 bg-slate-800 sm:px-6">
-                        <div className="flex-1 flex justify-between sm:hidden">
+                      <div className="px-3 py-2 flex items-center justify-between border-t border-slate-700 bg-slate-800">
+                        <div className="flex">
                           <button
                             onClick={() => table.previousPage()}
                             disabled={!table.getCanPreviousPage()}
-                            className={`relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md ${
+                            className={`px-2 py-1 border border-slate-600 text-xs rounded-l ${
                               !table.getCanPreviousPage()
-                                ? "text-slate-400 bg-slate-800 cursor-not-allowed"
-                                : "text-slate-200 bg-slate-800 hover:bg-slate-700"
+                                ? "text-slate-500 cursor-not-allowed"
+                                : "text-slate-300 hover:bg-slate-700"
                             }`}
                           >
-                            Anterior
+                            <ChevronLeftIcon className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => table.nextPage()}
                             disabled={!table.getCanNextPage()}
-                            className={`ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md ${
+                            className={`px-2 py-1 border-t border-b border-r border-slate-600 text-xs rounded-r ${
                               !table.getCanNextPage()
-                                ? "text-slate-400 bg-slate-800 cursor-not-allowed"
-                                : "text-slate-200 bg-slate-800 hover:bg-slate-700"
+                                ? "text-slate-500 cursor-not-allowed"
+                                : "text-slate-300 hover:bg-slate-700"
                             }`}
                           >
-                            Próximo
+                            <ChevronRightIcon className="h-4 w-4" />
                           </button>
                         </div>
-                        <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                          <div>
-                            <p className="text-sm text-slate-200">
-                              Mostrando{" "}
-                              <span className="font-medium">
-                                {table.getState().pagination.pageIndex *
-                                  table.getState().pagination.pageSize +
-                                  1}
-                              </span>{" "}
-                              a{" "}
-                              <span className="font-medium">
-                                {Math.min(
-                                  (table.getState().pagination.pageIndex + 1) *
-                                    table.getState().pagination.pageSize,
-                                  previewData.length
-                                )}
-                              </span>{" "}
-                              de{" "}
-                              <span className="font-medium">
-                                {previewData.length}
-                              </span>{" "}
-                              resultados
-                            </p>
-                          </div>
-                          <div>
-                            <nav
-                              className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px"
-                              aria-label="Pagination"
-                            >
-                              <button
-                                onClick={() => table.previousPage()}
-                                disabled={!table.getCanPreviousPage()}
-                                className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 text-sm font-medium ${
-                                  !table.getCanPreviousPage()
-                                    ? "text-slate-400 bg-slate-800 cursor-not-allowed"
-                                    : "text-slate-400 bg-slate-800 hover:bg-slate-700"
-                                }`}
-                              >
-                                <span className="sr-only">Anterior</span>
-                                <ChevronLeftIcon
-                                  className="h-5 w-5"
-                                  aria-hidden="true"
-                                />
-                              </button>
-                              <button
-                                onClick={() => table.nextPage()}
-                                disabled={!table.getCanNextPage()}
-                                className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 text-sm font-medium ${
-                                  !table.getCanNextPage()
-                                    ? "text-slate-400 bg-slate-800 cursor-not-allowed"
-                                    : "text-slate-400 bg-slate-800 hover:bg-slate-700"
-                                }`}
-                              >
-                                <span className="sr-only">Próximo</span>
-                                <ChevronRightIcon
-                                  className="h-5 w-5"
-                                  aria-hidden="true"
-                                />
-                              </button>
-                            </nav>
-                          </div>
+                        <div>
+                          <p className="text-xs text-slate-400">
+                            Mostrando {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}-
+                            {Math.min(
+                              (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
+                              previewData.length
+                            )}
+                            {" "}de{" "}
+                            {previewData.length}
+                          </p>
                         </div>
                       </div>
                     )}

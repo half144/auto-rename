@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
+import levenshtein from "fast-levenshtein";
 import {
   createColumnHelper,
   flexRender,
@@ -18,6 +19,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   DocumentArrowDownIcon,
+  InformationCircleIcon,
 } from "@heroicons/react/24/outline";
 
 interface ProcessFilesProps {
@@ -53,10 +55,65 @@ const ProcessFiles: React.FC<ProcessFilesProps> = ({
   const [referenceData, setReferenceData] = useState<ReferenceData>({});
   const [isPreviewReady, setIsPreviewReady] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [showHelp, setShowHelp] = useState(true);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
+
+  // Função para encontrar a melhor correspondência usando distância de Levenshtein
+  const findBestMatch = useCallback(
+    (identifier: string, referenceKeys: string[]): string | null => {
+      // Se encontrar uma correspondência exata, retorna imediatamente
+      if (referenceKeys.includes(identifier)) {
+        return identifier;
+      }
+
+      // Se a coluna de correspondência for relacionada a nomes
+      if (
+        matchColumn.toLowerCase().includes("colaborador") ||
+        matchColumn.toLowerCase().includes("nome")
+      ) {
+        // Normalizar o identificador para comparação
+        const normalizedIdentifier = identifier
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .trim();
+
+        // Valores para controlar a melhor correspondência
+        let bestMatch: string | null = null;
+        let lowestDistance = Infinity;
+        // Aumentar o threshold para nomes mais longos
+        const distanceThreshold = Math.min(identifier.length * 0.4, 10); // Limiar mais permissivo
+
+        // Encontrar a melhor correspondência baseada na distância de Levenshtein
+        for (const key of referenceKeys) {
+          const normalizedKey = key
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .trim();
+          
+          // Calcular a distância de Levenshtein
+          const distance = levenshtein.get(normalizedIdentifier, normalizedKey);
+          
+          // Se a distância for menor que a atual melhor e menor que o limiar
+          if (distance < lowestDistance && distance <= distanceThreshold) {
+            lowestDistance = distance;
+            bestMatch = key;
+          }
+        }
+
+        return bestMatch;
+      }
+
+      // Para outros tipos de colunas (como matrícula, ID, etc.)
+      // É mais seguro exigir correspondência exata
+      return null;
+    },
+    [matchColumn]
+  );
 
   // Função para extrair o identificador do nome do arquivo
   const extractIdentifierFromFilename = useCallback(
@@ -184,23 +241,10 @@ const ProcessFiles: React.FC<ProcessFilesProps> = ({
             // Criar um mapa de dados de referência usando a coluna de correspondência
             const refData: ReferenceData = {};
 
-            // Uma versão normalized para pesquisa mais flexível
-            const normalizedRefData: { [key: string]: string } = {};
-
             jsonData.forEach((row) => {
               const key = row[matchColumn]?.toString().trim();
               if (key) {
                 refData[key] = row;
-
-                // Adiciona uma versão normalizada (sem acentos, tudo em minúsculas, sem espaços extras)
-                const normalizedKey = key
-                  .toLowerCase()
-                  .normalize("NFD")
-                  .replace(/[\u0300-\u036f]/g, "")
-                  .replace(/\s+/g, " ")
-                  .trim();
-
-                normalizedRefData[normalizedKey] = key;
               }
             });
 
@@ -209,42 +253,21 @@ const ProcessFiles: React.FC<ProcessFilesProps> = ({
             // Gerar previews para os arquivos
             if (files.length > 0) {
               const previews: FilePreview[] = [];
+              const referenceKeys = Object.keys(refData);
 
               for (const file of files) {
                 const identifier = extractIdentifierFromFilename(file.name);
 
                 // Tentar encontrar o valor correspondente na referência
                 let fileRefData = refData[identifier];
+                let matchedIdentifier = identifier;
 
-                // Se não encontrar diretamente, tentar uma busca normalizada
-                if (
-                  !fileRefData &&
-                  matchColumn.toLowerCase().includes("colaborador")
-                ) {
-                  const normalizedIdentifier = identifier
-                    .toLowerCase()
-                    .normalize("NFD")
-                    .replace(/[\u0300-\u036f]/g, "")
-                    .replace(/\s+/g, " ")
-                    .trim();
-
-                  // Procurar por correspondências próximas
-                  const originalKey = normalizedRefData[normalizedIdentifier];
-                  if (originalKey) {
-                    fileRefData = refData[originalKey];
-                  } else {
-                    // Tentar encontrar se o nome está contido no identificador ou vice-versa
-                    const possibleKeys = Object.keys(normalizedRefData);
-                    for (const nKey of possibleKeys) {
-                      if (
-                        normalizedIdentifier.includes(nKey) ||
-                        nKey.includes(normalizedIdentifier)
-                      ) {
-                        const originalMatchKey = normalizedRefData[nKey];
-                        fileRefData = refData[originalMatchKey];
-                        break;
-                      }
-                    }
+                // Se não encontrar diretamente, usar o algoritmo de Levenshtein para encontrar a melhor correspondência
+                if (!fileRefData) {
+                  const bestMatch = findBestMatch(identifier, referenceKeys);
+                  if (bestMatch) {
+                    fileRefData = refData[bestMatch];
+                    matchedIdentifier = bestMatch;
                   }
                 }
 
@@ -256,7 +279,7 @@ const ProcessFiles: React.FC<ProcessFilesProps> = ({
                 previews.push({
                   originalName: file.name,
                   newName,
-                  error,
+                  error: error ? `${error} (Melhor correspondência: ${matchedIdentifier})` : undefined,
                   size: file.size,
                 });
               }
@@ -304,6 +327,7 @@ const ProcessFiles: React.FC<ProcessFilesProps> = ({
     extractIdentifierFromFilename,
     generateNewFilename,
     itemsPerPage,
+    findBestMatch,
   ]);
 
   // Efeito para atualizar os previews quando os arquivos ou o formato mudam
@@ -317,16 +341,30 @@ const ProcessFiles: React.FC<ProcessFilesProps> = ({
 
     const updatePreviews = () => {
       const previews: FilePreview[] = [];
+      const referenceKeys = Object.keys(referenceData);
 
       for (const file of files) {
         const identifier = extractIdentifierFromFilename(file.name);
-        const fileRefData = referenceData[identifier];
+        
+        // Tentar encontrar o valor correspondente na referência
+        let fileRefData = referenceData[identifier];
+        let matchedIdentifier = identifier;
+
+        // Se não encontrar diretamente, usar o algoritmo de Levenshtein
+        if (!fileRefData) {
+          const bestMatch = findBestMatch(identifier, referenceKeys);
+          if (bestMatch) {
+            fileRefData = referenceData[bestMatch];
+            matchedIdentifier = bestMatch;
+          }
+        }
+
         const { newName, error } = generateNewFilename(file.name, fileRefData);
 
         previews.push({
           originalName: file.name,
           newName,
-          error,
+          error: error ? `${error} (Melhor correspondência: ${matchedIdentifier})` : undefined,
           size: file.size,
         });
       }
@@ -346,6 +384,7 @@ const ProcessFiles: React.FC<ProcessFilesProps> = ({
     itemsPerPage,
     referenceFile,
     matchColumn,
+    findBestMatch,
   ]);
 
   // Definir as colunas da tabela
@@ -445,11 +484,23 @@ const ProcessFiles: React.FC<ProcessFilesProps> = ({
       const zip = new JSZip();
       const total = files.length;
       let processed = 0;
+      const referenceKeys = Object.keys(referenceData);
 
       // Adicionar cada arquivo ao ZIP com o novo nome
       for (const file of files) {
         const identifier = extractIdentifierFromFilename(file.name);
-        const fileRefData = referenceData[identifier];
+        
+        // Tentar encontrar o valor correspondente na referência
+        let fileRefData = referenceData[identifier];
+
+        // Se não encontrar diretamente, usar o algoritmo de Levenshtein
+        if (!fileRefData) {
+          const bestMatch = findBestMatch(identifier, referenceKeys);
+          if (bestMatch) {
+            fileRefData = referenceData[bestMatch];
+          }
+        }
+
         const { newName } = generateNewFilename(file.name, fileRefData);
 
         // Ler o conteúdo do arquivo
@@ -526,42 +577,141 @@ const ProcessFiles: React.FC<ProcessFilesProps> = ({
     return filePreviews.slice(startIndex, endIndex);
   };
 
+  // Estatísticas para o resumo
+  const getStatusSummary = useCallback(() => {
+    if (!filePreviews.length) return { success: 0, error: 0, total: 0 };
+    
+    const success = filePreviews.filter(preview => !preview.error).length;
+    return {
+      success,
+      error: filePreviews.length - success,
+      total: filePreviews.length
+    };
+  }, [filePreviews]);
+
   return (
-    <div className="space-y-6">
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
-        <div className="p-4 bg-slate-800 border-b border-slate-700">
-          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+    <div className="space-y-4">
+      {/* Painel de instruções compacto */}
+      {showHelp && (
+        <div className="p-3 bg-slate-700 rounded-lg border border-slate-600">
+          <div className="flex items-center">
+            <InformationCircleIcon className="h-5 w-5 text-blue-400 flex-shrink-0" />
+            <p className="ml-2 text-sm text-slate-300">
+              Verifique como os arquivos serão renomeados e clique no botão para baixá-los
+              <span className="block text-xs mt-1 text-slate-400">Os arquivos com problemas aparecem com status de erro</span>
+            </p>
+            <button
+              onClick={() => setShowHelp(false)}
+              className="ml-2 text-xs text-slate-400 hover:text-slate-300"
+            >
+              Ocultar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Resumo de status simplificado */}
+      {isPreviewReady && filePreviews.length > 0 && (
+        <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-sm font-medium text-slate-200">Resumo</h3>
+            {!showHelp && (
+              <button
+                type="button"
+                onClick={() => setShowHelp(true)}
+                className="text-xs text-slate-400 hover:text-slate-300 flex items-center"
+              >
+                <InformationCircleIcon className="h-4 w-4 mr-1" />
+                Ajuda
+              </button>
+            )}
+          </div>
+          
+          <div className="flex items-center space-x-1">
+            <div className="flex items-center bg-slate-700 rounded px-2 py-1">
+              <DocumentDuplicateIcon className="h-4 w-4 text-blue-400 mr-1" />
+              <span className="text-xs text-slate-300">Total: <span className="font-semibold">{getStatusSummary().total}</span></span>
+            </div>
+            
+            <div className="flex items-center bg-slate-700 rounded px-2 py-1">
+              <CheckCircleIcon className="h-4 w-4 text-green-500 mr-1" />
+              <span className="text-xs text-slate-300">Prontos: <span className="font-semibold text-green-400">{getStatusSummary().success}</span></span>
+            </div>
+            
+            <div className="flex items-center bg-slate-700 rounded px-2 py-1">
+              <ExclamationCircleIcon className="h-4 w-4 text-red-500 mr-1" />
+              <span className="text-xs text-slate-300">Erros: <span className="font-semibold text-red-400">{getStatusSummary().error}</span></span>
+            </div>
+          </div>
+          
+          {getStatusSummary().error > 0 && (
+            <div className="mt-2 px-2 py-1 bg-yellow-900/30 border border-yellow-800 rounded text-yellow-400 text-xs">
+              Alguns arquivos não puderam ser pareados com a planilha
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden shadow-sm">
+        <div className="p-3 border-b border-slate-700 flex justify-between items-center">
+          <div className="flex items-center">
             <DocumentArrowDownIcon className="w-5 h-5 text-blue-500 mr-2" />
-            Prévia dos arquivos renomeados
+            <h3 className="text-sm font-medium text-slate-200">
+              Prévia dos arquivos
           </h3>
+          </div>
+          {isPreviewReady && filePreviews.length > 0 && (
+            <button
+              type="button"
+              onClick={processFiles}
+              disabled={isProcessing || filePreviews.length === 0}
+              className={`inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded shadow-sm text-white ${
+                isProcessing || filePreviews.length === 0
+                  ? "bg-slate-600 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700"
+              }`}
+            >
+              {isDownloading ? (
+                <>
+                  <ArrowPathIcon className="w-4 h-4 mr-1 animate-spin" />
+                  Processando {progress}%
+                </>
+              ) : (
+                <>
+                  <ArrowDownTrayIcon className="w-4 h-4 mr-1" />
+                  Baixar ({getStatusSummary().success}/{getStatusSummary().total})
+                </>
+              )}
+            </button>
+          )}
         </div>
 
-        <div className="p-4">
+        <div className="p-3">
           {isProcessing && !isDownloading ? (
-            <div className="flex items-center justify-center py-8">
-              <ArrowPathIcon className="w-6 h-6 text-blue-500 animate-spin" />
-              <span className="ml-2 text-gray-600 dark:text-gray-400">
+            <div className="flex items-center justify-center py-4">
+              <ArrowPathIcon className="w-5 h-5 text-blue-500 animate-spin mr-2" />
+              <span className="text-slate-400 text-sm">
                 Processando arquivos...
               </span>
             </div>
           ) : error ? (
-            <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-md">
+            <div className="p-3 bg-red-900/20 text-red-400 rounded-md text-sm">
               {error}
             </div>
           ) : filePreviews.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-              Nenhum arquivo para processar.
+            <div className="text-center py-4 text-slate-400 text-sm">
+              Nenhum arquivo para processar
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <table className="min-w-full divide-y divide-slate-700">
                   <thead className="bg-slate-800">
                     <tr>
                       {table.getFlatHeaders().map((header) => (
                         <th
                           key={header.id}
-                          className="px-4 py-3 text-left text-xs font-medium text-slate-200 uppercase tracking-wider"
+                          className="px-3 py-2 text-left text-xs font-medium text-slate-300"
                         >
                           {flexRender(
                             header.column.columnDef.header,
@@ -571,13 +721,13 @@ const ProcessFiles: React.FC<ProcessFilesProps> = ({
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  <tbody className="bg-slate-800 divide-y divide-slate-700">
                     {table.getRowModel().rows.map((row) => (
                       <tr key={row.id} className="hover:bg-slate-700">
                         {row.getVisibleCells().map((cell) => (
                           <td
                             key={cell.id}
-                            className="px-4 py-2 text-sm text-slate-200"
+                            className="px-3 py-2 text-xs text-slate-300"
                           >
                             {flexRender(
                               cell.column.columnDef.cell,
@@ -591,123 +741,46 @@ const ProcessFiles: React.FC<ProcessFilesProps> = ({
                 </table>
               </div>
 
-              {/* Paginação */}
+              {/* Paginação simplificada */}
               {filePreviews.length > itemsPerPage && (
-                <div className="px-4 py-3 flex items-center justify-between border-t border-slate-700 bg-slate-800 sm:px-6 rounded-b-lg">
-                  <div className="flex-1 flex justify-between sm:hidden">
+                <div className="flex items-center justify-between border-t border-slate-700 bg-slate-800 px-3 py-2">
+                  <div className="flex">
                     <button
                       onClick={() => table.previousPage()}
                       disabled={!table.getCanPreviousPage()}
-                      className={`relative inline-flex items-center px-4 py-2 border border-slate-700 text-slate-200 text-sm font-medium rounded-md ${
+                      className={`px-2 py-1 border border-slate-600 text-xs rounded-l ${
                         !table.getCanPreviousPage()
-                          ? "text-slate-400 bg-slate-800 cursor-not-allowed"
-                          : "text-slate-200 bg-slate-800 hover:bg-slate-700"
+                          ? "text-slate-500 cursor-not-allowed"
+                          : "text-slate-300 hover:bg-slate-700"
                       }`}
                     >
-                      Anterior
+                      <ChevronLeftIcon className="h-4 w-4" />
                     </button>
                     <button
                       onClick={() => table.nextPage()}
                       disabled={!table.getCanNextPage()}
-                      className={`ml-3 relative inline-flex items-center px-4 py-2 border border-slate-700 text-slate-200 text-sm font-medium rounded-md ${
+                      className={`px-2 py-1 border-t border-b border-r border-slate-600 text-xs rounded-r ${
                         !table.getCanNextPage()
-                          ? "text-slate-400 bg-slate-800 cursor-not-allowed"
-                          : "text-slate-200 bg-slate-800 hover:bg-slate-700"
+                          ? "text-slate-500 cursor-not-allowed"
+                          : "text-slate-300 hover:bg-slate-700"
                       }`}
                     >
-                      Próximo
+                      <ChevronRightIcon className="h-4 w-4" />
                     </button>
                   </div>
-                  <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                     <div>
-                      <p className="text-sm text-slate-200">
-                        Mostrando{" "}
-                        <span className="font-medium">
-                          {table.getState().pagination.pageIndex *
-                            table.getState().pagination.pageSize +
-                            1}
-                        </span>{" "}
-                        a{" "}
-                        <span className="font-medium">
+                    <p className="text-xs text-slate-400">
+                      {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}-
                           {Math.min(
-                            (table.getState().pagination.pageIndex + 1) *
-                              table.getState().pagination.pageSize,
+                        (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
                             filePreviews.length
                           )}
-                        </span>{" "}
-                        de{" "}
-                        <span className="font-medium">
+                      {" "}de{" "}
                           {filePreviews.length}
-                        </span>{" "}
-                        resultados
-                      </p>
-                    </div>
-                    <div>
-                      <nav
-                        className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px"
-                        aria-label="Pagination"
-                      >
-                        <button
-                          onClick={() => table.previousPage()}
-                          disabled={!table.getCanPreviousPage()}
-                          className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-slate-700 text-slate-200 text-sm font-medium ${
-                            !table.getCanPreviousPage()
-                              ? "text-slate-400 bg-slate-800 cursor-not-allowed"
-                              : "text-slate-200 bg-slate-800 hover:bg-slate-700"
-                          }`}
-                        >
-                          <span className="sr-only">Anterior</span>
-                          <ChevronLeftIcon
-                            className="h-5 w-5"
-                            aria-hidden="true"
-                          />
-                        </button>
-                        <button
-                          onClick={() => table.nextPage()}
-                          disabled={!table.getCanNextPage()}
-                          className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-slate-700 text-slate-200 text-sm font-medium ${
-                            !table.getCanNextPage()
-                              ? "text-slate-400 bg-slate-800 cursor-not-allowed"
-                              : "text-slate-200 bg-slate-800 hover:bg-slate-700"
-                          }`}
-                        >
-                          <span className="sr-only">Próximo</span>
-                          <ChevronRightIcon
-                            className="h-5 w-5"
-                            aria-hidden="true"
-                          />
-                        </button>
-                      </nav>
-                    </div>
+                    </p>
                   </div>
                 </div>
               )}
-
-              {/* Botão para processar */}
-              <div className="mt-6 flex justify-center">
-                <button
-                  type="button"
-                  onClick={processFiles}
-                  disabled={isProcessing || filePreviews.length === 0}
-                  className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${
-                    isProcessing || filePreviews.length === 0
-                      ? "bg-slate-600 cursor-not-allowed"
-                      : "bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  }`}
-                >
-                  {isDownloading ? (
-                    <>
-                      <ArrowPathIcon className="w-5 h-5 mr-2 animate-spin" />
-                      Processando ({progress}%)
-                    </>
-                  ) : (
-                    <>
-                      <ArrowDownTrayIcon className="w-5 h-5 mr-2" />
-                      Baixar Arquivos Renomeados
-                    </>
-                  )}
-                </button>
-              </div>
             </div>
           )}
         </div>
