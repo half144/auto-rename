@@ -6,6 +6,10 @@ import {
   getCoreRowModel,
   getPaginationRowModel,
   useReactTable,
+  Row,
+  Cell,
+  Header,
+  Table
 } from "@tanstack/react-table";
 import {
   TableCellsIcon,
@@ -24,6 +28,8 @@ interface ReferenceColumnSelectorProps {
   onAvailableColumnsChange: (columns: string[]) => void;
 }
 
+type DataType = Record<string, any>;
+
 const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
   referenceFile,
   onMatchColumnChange,
@@ -33,37 +39,52 @@ const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
   const [selectedColumn, setSelectedColumn] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [previewData, setPreviewData] = useState<Record<string, any>[]>([]);
+  const [previewData, setPreviewData] = useState<DataType[]>([]);
   const [showPreview, setShowPreview] = useState(true);
   const [isVisible, setIsVisible] = useState(false);
-  const [showHelp, setShowHelp] = useState(true);
+  const [showHelp, setShowHelp] = useState(false);
 
-  const isColumnValid = useCallback((col: string, columnList: string[]) => {
-    return col && columnList.includes(col);
-  }, []);
-
-  const [hasSelectedInitialColumn, setHasSelectedInitialColumn] =
-    useState(false);
-
-  const handleMatchColumnChange = useCallback(
-    (column: string) => {
-      setSelectedColumn(column);
-      onMatchColumnChange(column);
-    },
-    [onMatchColumnChange]
-  );
-
-  const handleAvailableColumnsChange = useCallback(
-    (columns: string[]) => {
-      onAvailableColumnsChange(columns);
-    },
-    [onAvailableColumnsChange]
-  );
+  const possibleMatchColumns = useMemo(() => [
+    // Identificadores numéricos
+    "id",
+    "matricula",
+    "matrícula",
+    "código",
+    "codigo",
+    "registro",
+    "identificador",
+    "chave",
+    "número",
+    "numero",
+    // Identificadores de nome
+    "nome",
+    "name",
+    "nome completo",
+    "nome_completo",
+    "nomecompleto",
+    "fullname",
+    "full_name",
+    "full name",
+    // CPF e outros documentos
+    "cpf",
+    "rg",
+    "documento",
+    "document",
+    // Email como identificador
+    "email",
+    "e-mail",
+    "correio",
+    // Outros identificadores comuns
+    "user",
+    "usuario",
+    "usuário",
+    "login",
+  ], []);
 
   const tableColumns = useMemo(() => {
     if (columns.length === 0) return [];
 
-    const columnHelper = createColumnHelper<Record<string, any>>();
+    const columnHelper = createColumnHelper<DataType>();
 
     return columns.map((column) =>
       columnHelper.accessor(column, {
@@ -102,18 +123,77 @@ const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
     },
   });
 
+  const findBestMatchColumn = useCallback((columnNames: string[]) => {
+    // Primeiro, procura por correspondência exata
+    const exactMatch = columnNames.find(col => 
+      possibleMatchColumns.includes(col.toLowerCase())
+    );
+    if (exactMatch) return exactMatch;
+
+    // Se não encontrar correspondência exata, procura por correspondência parcial
+    const partialMatch = columnNames.find(col => 
+      possibleMatchColumns.some(possible => 
+        col.toLowerCase().includes(possible.toLowerCase())
+      )
+    );
+    if (partialMatch) return partialMatch;
+
+    // Se não encontrar nenhuma correspondência, retorna a primeira coluna
+    return columnNames[0];
+  }, [possibleMatchColumns]);
+
+  const readExcelFile = async (file: File): Promise<DataType[]> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = (e) => {
+        try {
+          const data = e.target?.result;
+          if (!data) {
+            reject(new Error("Falha ao ler o arquivo."));
+            return;
+          }
+
+          const workbook = XLSX.read(data, {
+            type: file.name.endsWith(".csv") ? "binary" : "array",
+            cellDates: true,
+            cellNF: false,
+            cellText: false
+          });
+
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+            raw: true,
+            defval: "",
+            blankrows: false
+          });
+
+          resolve(jsonData as DataType[]);
+        } catch (error) {
+          reject(error);
+        }
+      };
+
+      reader.onerror = () => {
+        reject(new Error("Erro ao ler o arquivo."));
+      };
+
+      if (file.name.endsWith(".csv")) {
+        reader.readAsBinaryString(file);
+      } else {
+        reader.readAsArrayBuffer(file);
+      }
+    });
+  };
+
   useEffect(() => {
     if (!referenceFile) return;
 
     let isMounted = true;
-
-    const loadingTimeout = setTimeout(() => {
-      if (isMounted) setIsLoading(true);
-    }, 200);
+    setIsLoading(true);
 
     const loadReferenceFile = async () => {
-      if (isMounted) setError(null);
-
       try {
         const data = await readExcelFile(referenceFile);
         if (!isMounted) return;
@@ -123,38 +203,15 @@ const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
           setColumns(columnNames);
           onAvailableColumnsChange(columnNames);
 
-          if (
-            !hasSelectedInitialColumn ||
-            !isColumnValid(selectedColumn, columnNames)
-          ) {
-            const possibleMatchColumns = [
-              "id",
-              "matricula",
-              "matrícula",
-              "código",
-              "codigo",
-              "registro",
-              "identificador",
-              "chave",
-            ];
+          // Encontra a melhor coluna de correspondência
+          const bestMatch = findBestMatchColumn(columnNames);
+          setSelectedColumn(bestMatch);
+          onMatchColumnChange(bestMatch);
 
-            const matchColumn = columnNames.find((col) =>
-              possibleMatchColumns.includes(col.toLowerCase())
-            );
-
-            if (matchColumn) {
-              setSelectedColumn(matchColumn);
-              onMatchColumnChange(matchColumn);
-              setHasSelectedInitialColumn(true);
-            } else if (columnNames.length > 0) {
-              setSelectedColumn(columnNames[0]);
-              onMatchColumnChange(columnNames[0]);
-              setHasSelectedInitialColumn(true);
-            }
-          }
-
-          setPreviewData(data.slice(0, 10));
+          // Define os dados de preview
+          setPreviewData(data.slice(0, 5));
           setShowPreview(true);
+          setError(null);
         } else {
           setError("Nenhum dado encontrado no arquivo de referência.");
         }
@@ -175,65 +232,12 @@ const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
 
     return () => {
       isMounted = false;
-      clearTimeout(loadingTimeout);
     };
-  }, [
-    referenceFile,
-    onAvailableColumnsChange,
-    onMatchColumnChange,
-    selectedColumn,
-    hasSelectedInitialColumn,
-    isColumnValid,
-  ]);
-
-  const readExcelFile = async (file: File): Promise<Record<string, any>[]> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-
-      reader.onload = (e) => {
-        try {
-          const data = e.target?.result;
-          if (!data) {
-            reject(new Error("Falha ao ler o arquivo."));
-            return;
-          }
-
-          let workbook;
-          if (file.name.endsWith(".csv")) {
-            workbook = XLSX.read(data, { type: "binary" });
-          } else {
-            workbook = XLSX.read(data, { type: "array" });
-          }
-
-          const firstSheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[firstSheetName];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, {
-            header: 2,
-            defval: "",
-          });
-
-          resolve(jsonData as Record<string, any>[]);
-        } catch (error) {
-          reject(error);
-        }
-      };
-
-      reader.onerror = () => {
-        reject(new Error("Erro ao ler o arquivo."));
-      };
-
-      if (file.name.endsWith(".csv")) {
-        reader.readAsBinaryString(file);
-      } else {
-        reader.readAsArrayBuffer(file);
-      }
-    });
-  };
+  }, [referenceFile, onAvailableColumnsChange, onMatchColumnChange, findBestMatchColumn]);
 
   const handleColumnChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const column = e.target.value;
     setSelectedColumn(column);
-    setHasSelectedInitialColumn(true);
     onMatchColumnChange(column);
   };
 
@@ -243,20 +247,17 @@ const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
 
   useEffect(() => {
     if (referenceFile) {
-      const timer = setTimeout(() => {
-        setIsVisible(true);
-      }, 100);
-      return () => clearTimeout(timer);
+      setIsVisible(true);
     } else {
       setIsVisible(false);
     }
   }, [referenceFile]);
 
   // Sugestão de colunas comuns para correspondência
-  const commonMatchColumns = [
+  const commonMatchColumns = useMemo(() => [
     "id", "matricula", "matrícula", "código", "codigo",
     "registro", "identificador", "chave", "cpf", "nome", "colaborador"
-  ];
+  ], []);
 
   // Descreve o tipo de cada coluna de correspondência para ajudar o usuário
   const getColumnTypeDescription = useCallback((columnName: string) => {
@@ -285,24 +286,6 @@ const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
         isVisible ? "opacity-100" : "opacity-0"
       } transition-opacity duration-300`}
     >
-      {showHelp && (
-        <div className="p-3 bg-slate-700 rounded-lg border border-slate-600">
-          <div className="flex items-center">
-            <InformationCircleIcon className="h-5 w-5 text-blue-400 flex-shrink-0" />
-            <p className="ml-2 text-sm text-slate-300">
-              Selecione a coluna da planilha que corresponde ao identificador nos nomes dos arquivos 
-              <span className="block text-xs mt-1 text-slate-400">Ex: Se os arquivos têm números de matrícula (12345.pdf), escolha a coluna "matrícula"</span>
-            </p>
-            <button
-              onClick={() => setShowHelp(false)}
-              className="ml-2 text-xs text-slate-400 hover:text-slate-300"
-            >
-              Ocultar
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden shadow-sm">
         <div className="p-3 bg-slate-800 border-b border-slate-700 flex justify-between items-center">
           <div className="flex items-center">
@@ -312,16 +295,13 @@ const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
             </h3>
           </div>
           <div className="flex items-center space-x-2">
-            {!showHelp && (
-              <button
-                type="button"
-                onClick={() => setShowHelp(true)}
-                className="text-xs text-slate-400 hover:text-slate-300 flex items-center"
-              >
-                <InformationCircleIcon className="h-4 w-4 mr-1" />
-                Ajuda
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setShowHelp(!showHelp)}
+              className="text-xs text-slate-400 hover:text-slate-300 flex items-center"
+            >
+              {showHelp ? "Ocultar ajuda" : "Ajuda"} <InformationCircleIcon className="w-4 h-4 ml-1" />
+            </button>
             {previewData.length > 0 && (
               <button
                 type="button"
@@ -344,6 +324,22 @@ const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
           </div>
         </div>
 
+        {showHelp && (
+          <div className="p-3 bg-slate-700 border-b border-slate-600">
+            <div className="flex items-center text-sm text-slate-300 mb-2">
+              <InformationCircleIcon className="w-4 h-4 text-blue-400 mr-1" /> 
+              Como selecionar a coluna de identificação
+            </div>
+            <div className="bg-slate-800 p-2 rounded border border-slate-600">
+              <div className="text-xs">
+                <p className="text-slate-300 mb-1">Selecione a coluna que contém informações que permitem identificar cada arquivo (como nome, CPF, matrícula, etc).</p>
+                <p className="text-slate-300 mb-1">Essa coluna será usada para combinar os dados da planilha com seus arquivos.</p>
+                <p className="text-slate-300">Exemplo: se seus arquivos têm nomes como <span className="text-blue-400">Relatório - João Silva.pdf</span>, selecione a coluna <span className="text-green-400">Nome</span> que contenha "João Silva".</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="p-3 min-h-[150px]">
           {isLoading ? (
             <div className="flex items-center justify-center py-4">
@@ -365,8 +361,7 @@ const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
                 >
                   Coluna que identifica cada arquivo:
                 </label>
-                
-                <div className="flex flex-col md:flex-row md:items-center gap-3">
+                <div className="flex flex-col md:flex-row gap-2">
                   <div className="flex-1">
                     <select
                       id="matchColumn"
@@ -415,7 +410,7 @@ const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
                       <table className="min-w-full divide-y divide-slate-700">
                         <thead className="bg-slate-800">
                           <tr>
-                            {table.getFlatHeaders().map((header) => (
+                            {table.getFlatHeaders().map((header: Header<DataType, unknown>) => (
                               <th
                                 key={header.id}
                                 className={`px-3 py-2 text-left text-xs font-medium text-slate-300 ${
@@ -433,9 +428,9 @@ const ReferenceColumnSelector: React.FC<ReferenceColumnSelectorProps> = ({
                           </tr>
                         </thead>
                         <tbody className="bg-slate-800 divide-y divide-slate-700">
-                          {table.getRowModel().rows.map((row) => (
+                          {table.getRowModel().rows.map((row: Row<DataType>) => (
                             <tr key={row.id} className="hover:bg-slate-700">
-                              {row.getVisibleCells().map((cell) => (
+                              {row.getVisibleCells().map((cell: Cell<DataType, unknown>) => (
                                 <td
                                   key={cell.id}
                                   className={`px-3 py-2 text-xs text-slate-300 ${

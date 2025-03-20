@@ -1,10 +1,12 @@
 # *
 User-agent: *
 Allow: /
+Disallow: /api/
+Disallow: /admin/
 
 # Host
-Host: https://auto-rename-zeta.vercel.app
+Host: https://rc-docs.vercel.app
 
 # Sitemaps
-Sitemap: https://auto-rename-zeta.vercel.app/sitemap.xml
-Sitemap: https://auto-rename-zeta.vercel.app/server-sitemap.xml
+Sitemap: https://rc-docs.vercel.app/sitemap.xml
+Sitemap: https://rc-docs.vercel.app/server-sitemap.xml

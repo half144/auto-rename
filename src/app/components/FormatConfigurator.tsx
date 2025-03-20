@@ -4,6 +4,7 @@ import {
   PlusCircleIcon,
   InformationCircleIcon,
   SparklesIcon,
+  PencilIcon
 } from "@heroicons/react/24/outline";
 
 interface FormatConfiguratorProps {
@@ -18,7 +19,7 @@ const FormatConfigurator: React.FC<FormatConfiguratorProps> = ({
   availableColumns = [],
 }) => {
   const [format, setFormat] = useState(initialFormat);
-  const [showHelp, setShowHelp] = useState(true);
+  const [showHelp, setShowHelp] = useState(false);
   const [previewName, setPreviewName] = useState("documento.pdf");
 
   // Atualizar o formato quando o initialFormat mudar
@@ -343,14 +344,18 @@ const FormatConfigurator: React.FC<FormatConfiguratorProps> = ({
             >
               Digite o formato:
             </label>
-            <div className="flex mb-2">
+            <div className="flex mb-2 relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <PencilIcon className="h-4 w-4 text-slate-400" />
+              </div>
               <input
                 type="text"
                 id="formatInput"
                 value={format}
                 onChange={handleFormatChange}
                 placeholder="Escolha um modelo acima ou digite aqui"
-                className="flex-1 block w-full rounded-md border-slate-600 bg-slate-800 text-white text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                className="flex-1 block w-full rounded-md border border-slate-500 bg-slate-700 text-white text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:bg-slate-600 focus:outline-none cursor-text pl-9 pr-3 py-2 transition-colors"
+                style={{caretColor: 'white'}}
               />
             </div>
             <div className="p-2 bg-slate-700 rounded border border-slate-600">

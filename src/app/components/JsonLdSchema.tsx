@@ -8,10 +8,10 @@ export default function JsonLdSchema() {
     '@context': 'https://schema.org',
     '@type': 'Organization',
     name: 'Renomeador Automático',
-    url: 'https://auto-rename-zeta.vercel.app',
-    logo: 'https://auto-rename-zeta.vercel.app/logo.png',
+    url: 'https://rc-docs.vercel.app',
+    logo: 'https://rc-docs.vercel.app/logo.png',
     sameAs: [
-      'https://github.com/half144/auto-rename',
+      'https://github.com/half144/rc-docs',
     ],
     contactPoint: {
       '@type': 'ContactPoint',
@@ -28,7 +28,7 @@ export default function JsonLdSchema() {
     '@context': 'https://schema.org',
     '@type': ['WebApplication', 'SoftwareApplication'],
     name: 'Renomeador Automático de Arquivos',
-    url: 'https://auto-rename-zeta.vercel.app',
+    url: 'https://rc-docs.vercel.app',
     description: 'Ferramenta online gratuita para renomear arquivos em massa com base em planilhas Excel ou CSV.',
     applicationCategory: 'UtilitiesApplication',
     operatingSystem: 'Web',
@@ -55,11 +55,11 @@ export default function JsonLdSchema() {
     '@type': 'WebPage',
     name: 'Renomeador Automático de Arquivos',
     description: 'Ferramenta online gratuita para renomear arquivos em massa com base em planilhas Excel ou CSV.',
-    url: 'https://auto-rename-zeta.vercel.app',
+    url: 'https://rc-docs.vercel.app',
     isPartOf: {
       '@type': 'WebSite',
       name: 'Renomeador Automático',
-      url: 'https://auto-rename-zeta.vercel.app'
+      url: 'https://rc-docs.vercel.app'
     },
     speakable: {
       '@type': 'SpeakableSpecification',
@@ -72,13 +72,13 @@ export default function JsonLdSchema() {
           '@type': 'ListItem',
           position: 1,
           name: 'Home',
-          item: 'https://auto-rename-zeta.vercel.app'
+          item: 'https://rc-docs.vercel.app'
         },
         {
           '@type': 'ListItem',
           position: 2,
           name: 'Renomeador',
-          item: 'https://auto-rename-zeta.vercel.app/renomeador'
+          item: 'https://rc-docs.vercel.app/renomeador'
         }
       ]
     }

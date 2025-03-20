@@ -87,7 +87,7 @@ O projeto inclui uma versão desktop nativa construída com Tauri, oferecendo v�
 
 ### Instalação da Versão Desktop
 
-Baixe o instalador apropriado para seu sistema operacional na seção de [Releases](https://github.com/half144/auto-rename/releases) do GitHub.
+Baixe o instalador apropriado para seu sistema operacional na seção de [Releases](https://github.com/half144/rc-docs/releases) do GitHub.
 
 Disponível para:
 
@@ -107,8 +107,8 @@ Disponível para:
 
 ```bash
 # Clonar o repositório
-git clone https://github.com/half144/auto-rename.git
-cd auto-rename
+git clone https://github.com/half144/rc-docs.git
+cd rc-docs
 
 # Instalar dependências
 npm install
@@ -152,7 +152,7 @@ Os instaladores da versão desktop serão gerados na pasta `src-tauri/target/rel
 ## 📝 Estrutura do Projeto
 
 ```
-auto-rename/
+rc-docs/
 ├── src/                              # Código fonte frontend (Next.js/React)
 │   ├── app/
 │   │   ├── components/               # Componentes React

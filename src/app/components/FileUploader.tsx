@@ -7,6 +7,7 @@ import {
   TableCellsIcon,
   DocumentDuplicateIcon,
   CheckCircleIcon,
+  InformationCircleIcon,
 } from "@heroicons/react/24/outline";
 
 interface FileUploaderProps {
@@ -22,6 +23,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
 }) => {
   const [files, setFiles] = useState<File[]>([]);
   const [referenceFile, setReferenceFile] = useState<File | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
 
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
@@ -86,6 +88,35 @@ const FileUploader: React.FC<FileUploaderProps> = ({
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-between items-center mb-2">
+        <h3 className="text-sm font-medium text-slate-200">
+          Selecione os arquivos para renomear
+        </h3>
+        <button
+          type="button"
+          onClick={() => setShowHelp(!showHelp)}
+          className="text-xs text-slate-400 hover:text-slate-300 flex items-center"
+        >
+          {showHelp ? "Ocultar ajuda" : "Ajuda"} <InformationCircleIcon className="w-4 h-4 ml-1" />
+        </button>
+      </div>
+
+      {showHelp && (
+        <div className="p-3 bg-slate-700 border border-slate-600 rounded-lg mb-3">
+          <div className="flex items-center text-sm text-slate-300 mb-2">
+            <InformationCircleIcon className="w-4 h-4 text-blue-400 mr-1" /> 
+            Como funciona o carregamento de arquivos
+          </div>
+          <div className="bg-slate-800 p-2 rounded border border-slate-600">
+            <div className="text-xs">
+              <p className="text-slate-300 mb-1"><span className="text-blue-400">1.</span> Carregue uma planilha (Excel ou CSV) que contenha os dados para renomear seus arquivos.</p>
+              <p className="text-slate-300 mb-1"><span className="text-blue-400">2.</span> Faça upload dos arquivos que você deseja renomear (PDF, DOC, JPG, etc).</p>
+              <p className="text-slate-300"><span className="text-blue-400">3.</span> O sistema irá relacionar os arquivos com os dados da planilha para renomeá-los automaticamente.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid md:grid-cols-2 gap-6">
         {/* Área de upload do arquivo de referência */}
         <div className="flex flex-col h-full">

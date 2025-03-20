@@ -55,7 +55,7 @@ const ProcessFiles: React.FC<ProcessFilesProps> = ({
   const [referenceData, setReferenceData] = useState<ReferenceData>({});
   const [isPreviewReady, setIsPreviewReady] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [showHelp, setShowHelp] = useState(true);
+  const [showHelp, setShowHelp] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -590,65 +590,69 @@ const ProcessFiles: React.FC<ProcessFilesProps> = ({
   }, [filePreviews]);
 
   return (
-    <div className="space-y-4">
-      {/* Painel de instruções compacto */}
-      {showHelp && (
-        <div className="p-3 bg-slate-700 rounded-lg border border-slate-600">
-          <div className="flex items-center">
-            <InformationCircleIcon className="h-5 w-5 text-blue-400 flex-shrink-0" />
-            <p className="ml-2 text-sm text-slate-300">
-              Verifique como os arquivos serão renomeados e clique no botão para baixá-los
-              <span className="block text-xs mt-1 text-slate-400">Os arquivos com problemas aparecem com status de erro</span>
-            </p>
+    <div className="space-y-5">
+      {getStatusSummary().total > 0 && (
+        <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden shadow-sm">
+          <div className="p-3 border-b border-slate-700 flex justify-between items-center">
+            <div className="flex items-center">
+              <DocumentDuplicateIcon className="w-5 h-5 text-blue-500 mr-2" />
+              <h3 className="text-sm font-medium text-slate-200">
+                Resumo do processamento
+              </h3>
+            </div>
             <button
-              onClick={() => setShowHelp(false)}
-              className="ml-2 text-xs text-slate-400 hover:text-slate-300"
+              type="button"
+              onClick={() => setShowHelp(!showHelp)}
+              className="text-xs text-slate-400 hover:text-slate-300 flex items-center"
             >
-              Ocultar
+              {showHelp ? "Ocultar ajuda" : "Ajuda"} <InformationCircleIcon className="w-4 h-4 ml-1" />
             </button>
           </div>
-        </div>
-      )}
 
-      {/* Resumo de status simplificado */}
-      {isPreviewReady && filePreviews.length > 0 && (
-        <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="text-sm font-medium text-slate-200">Resumo</h3>
-            {!showHelp && (
-              <button
-                type="button"
-                onClick={() => setShowHelp(true)}
-                className="text-xs text-slate-400 hover:text-slate-300 flex items-center"
-              >
-                <InformationCircleIcon className="h-4 w-4 mr-1" />
-                Ajuda
-              </button>
-            )}
-          </div>
-          
-          <div className="flex items-center space-x-1">
-            <div className="flex items-center bg-slate-700 rounded px-2 py-1">
-              <DocumentDuplicateIcon className="h-4 w-4 text-blue-400 mr-1" />
-              <span className="text-xs text-slate-300">Total: <span className="font-semibold">{getStatusSummary().total}</span></span>
-            </div>
-            
-            <div className="flex items-center bg-slate-700 rounded px-2 py-1">
-              <CheckCircleIcon className="h-4 w-4 text-green-500 mr-1" />
-              <span className="text-xs text-slate-300">Prontos: <span className="font-semibold text-green-400">{getStatusSummary().success}</span></span>
-            </div>
-            
-            <div className="flex items-center bg-slate-700 rounded px-2 py-1">
-              <ExclamationCircleIcon className="h-4 w-4 text-red-500 mr-1" />
-              <span className="text-xs text-slate-300">Erros: <span className="font-semibold text-red-400">{getStatusSummary().error}</span></span>
-            </div>
-          </div>
-          
-          {getStatusSummary().error > 0 && (
-            <div className="mt-2 px-2 py-1 bg-yellow-900/30 border border-yellow-800 rounded text-yellow-400 text-xs">
-              Alguns arquivos não puderam ser pareados com a planilha
+          {showHelp && (
+            <div className="p-3 bg-slate-700 border-b border-slate-600">
+              <div className="flex items-center text-sm text-slate-300 mb-2">
+                <InformationCircleIcon className="w-4 h-4 text-blue-400 mr-1" /> 
+                Sobre o processamento de arquivos
+              </div>
+              <div className="bg-slate-800 p-2 rounded border border-slate-600">
+                <div className="text-xs">
+                  <p className="text-slate-300 mb-1">O sistema tenta encontrar correspondências entre seus arquivos e os dados da planilha.</p>
+                  <p className="text-slate-300 mb-1">Arquivos <span className="text-green-400">com sucesso</span> foram vinculados corretamente aos dados da planilha.</p>
+                  <p className="text-slate-300">Arquivos <span className="text-red-400">com erro</span> não foram reconhecidos ou não possuem correspondência na planilha.</p>
+                </div>
+              </div>
             </div>
           )}
+
+          <div className="p-3">
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="bg-slate-700 p-3 rounded">
+                <span className="text-3xl font-bold text-white block">
+                  {getStatusSummary().total}
+                </span>
+                <span className="text-xs text-slate-400">Total de arquivos</span>
+              </div>
+              <div className="bg-green-900/30 p-3 rounded border border-green-800">
+                <span className="text-3xl font-bold text-green-400 block">
+                  {getStatusSummary().success}
+                </span>
+                <span className="text-xs text-green-400">
+                  Com sucesso{' '}
+                  <CheckCircleIcon className="w-3 h-3 inline text-green-400" />
+                </span>
+              </div>
+              <div className="bg-red-900/30 p-3 rounded border border-red-800">
+                <span className="text-3xl font-bold text-red-400 block">
+                  {getStatusSummary().error}
+                </span>
+                <span className="text-xs text-red-400">
+                  Com erro{' '}
+                  <ExclamationCircleIcon className="w-3 h-3 inline text-red-400" />
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -658,7 +662,7 @@ const ProcessFiles: React.FC<ProcessFilesProps> = ({
             <DocumentArrowDownIcon className="w-5 h-5 text-blue-500 mr-2" />
             <h3 className="text-sm font-medium text-slate-200">
               Prévia dos arquivos
-          </h3>
+            </h3>
           </div>
           {isPreviewReady && filePreviews.length > 0 && (
             <button
